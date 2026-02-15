@@ -1,0 +1,236 @@
+'use client'
+
+import { useState } from 'react'
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table'
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { MoreHorizontal, Pencil, Trash2, Search, Package, Layers, Info, FolderKanban } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { useRouter } from 'next/navigation'
+import { deleteResource } from '@/lib/actions/resources'
+import { ResourceDialog } from './resource-dialog'
+
+import {
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger,
+} from '@/components/ui/tabs'
+
+interface Resource {
+    resource_id: string
+    resource_name: string
+    group_name: string | null
+    unit: string | null
+    quantity_in: string | number | null
+    quantity_out: string | number | null
+    quantity_balance: string | number | null
+    status: string | null
+    priority: string | null
+    notes: string | null
+    project_id: string | null
+    projects?: {
+        project_name: string
+    } | null
+}
+
+interface ResourceListProps {
+    initialResources: Resource[]
+    users: { email: string; full_name: string }[]
+    projects: { project_id: string; project_name: string }[]
+}
+
+export function ResourceList({ initialResources, users, projects }: ResourceListProps) {
+    const router = useRouter()
+    const [searchTerm, setSearchTerm] = useState('')
+    const [activeTab, setActiveTab] = useState('all')
+    const [isDialogOpen, setIsDialogOpen] = useState(false)
+    const [editingResource, setEditingResource] = useState<Resource | null>(null)
+
+    const filteredResources = initialResources.filter((resource) => {
+        const matchesSearch =
+            resource.resource_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (resource.group_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+            (resource.projects?.project_name?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+
+        const matchesTab = activeTab === 'all' || resource.project_id === activeTab
+
+        return matchesSearch && matchesTab
+    })
+
+    const handleEdit = (resource: Resource) => {
+        setEditingResource(resource)
+        setIsDialogOpen(true)
+    }
+
+    const handleDelete = async (resourceId: string) => {
+        if (confirm('Bạn có chắc chắn muốn xóa tài nguyên này?')) {
+            try {
+                await deleteResource(resourceId)
+                router.refresh()
+            } catch (error) {
+                console.error('Error deleting resource:', error)
+                alert('Có lỗi xảy ra khi xóa tài nguyên.')
+            }
+        }
+    }
+
+    return (
+        <div className="space-y-6">
+            <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+                <div className="relative w-full md:max-w-sm">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="Tìm tài nguyên..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10 h-10 rounded-xl"
+                    />
+                </div>
+                <Button
+                    onClick={() => {
+                        setEditingResource(null)
+                        setIsDialogOpen(true)
+                    }}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 rounded-xl px-4 h-10"
+                >
+                    Thêm tài nguyên
+                </Button>
+            </div>
+
+            <Tabs defaultValue="all" className="w-full" onValueChange={setActiveTab}>
+                <TabsList className="bg-secondary/50 p-1 h-auto flex-wrap justify-start border border-border/50 rounded-2xl mb-6">
+                    <TabsTrigger
+                        value="all"
+                        className="rounded-xl px-4 py-2 data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all text-xs font-semibold"
+                    >
+                        <Layers className="h-3.5 w-3.5 mr-2" />
+                        Tất cả tài nguyên
+                    </TabsTrigger>
+                    {projects.map(project => (
+                        <TabsTrigger
+                            key={project.project_id}
+                            value={project.project_id}
+                            className="rounded-xl px-4 py-2 data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all text-xs font-semibold"
+                        >
+                            <FolderKanban className="h-3.5 w-3.5 mr-2" />
+                            {project.project_name}
+                        </TabsTrigger>
+                    ))}
+                </TabsList>
+
+                <div className="border border-border/50 rounded-xl overflow-hidden bg-card/40 backdrop-blur-xl shadow-sm">
+                    <Table>
+                        <TableHeader>
+                            <TableRow className="hover:bg-transparent border-border/50">
+                                <TableHead className="w-[120px]">Mã tài nguyên</TableHead>
+                                <TableHead>Thông tin tài nguyên</TableHead>
+                                <TableHead>Dự án</TableHead>
+                                <TableHead>Đơn vị</TableHead>
+                                <TableHead className="text-right">Tồn kho</TableHead>
+                                <TableHead>Trạng thái</TableHead>
+                                <TableHead className="text-right">Thao tác</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {filteredResources.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                                        Không tìm thấy tài nguyên nào.
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                filteredResources.map((resource) => (
+                                    <TableRow key={resource.resource_id} className="group hover:bg-foreground/[0.02] transition-colors border-border/50">
+                                        <TableCell className="font-mono text-xs font-medium text-muted-foreground uppercase">{resource.resource_id}</TableCell>
+                                        <TableCell>
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-8 w-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                                                    <Package className="h-4 w-4" />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <p className="font-semibold text-foreground text-sm">{resource.resource_name}</p>
+                                                    <p className="text-[11px] text-muted-foreground">{resource.group_name || '-'}</p>
+                                                </div>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            {resource.projects?.project_name ? (
+                                                <div className="flex items-center gap-2 text-[11px] text-primary font-medium bg-primary/5 px-2 py-0.5 rounded-full w-fit">
+                                                    <FolderKanban className="h-3 w-3" />
+                                                    <span className="truncate max-w-[100px]">{resource.projects.project_name}</span>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-2 text-[11px] text-muted-foreground italic">
+                                                    <Layers className="h-3 w-3" />
+                                                    <span>Dùng chung</span>
+                                                </div>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="text-xs text-muted-foreground">{resource.unit || '-'}</TableCell>
+                                        <TableCell className="text-right font-mono text-xs font-bold text-foreground">
+                                            {new Intl.NumberFormat('vi-VN').format(Number(resource.quantity_balance || 0))}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge variant="secondary" className="rounded-full px-2.5 py-0.5 text-[10px] uppercase font-bold tracking-tight bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-none">
+                                                {resource.status || 'Hoạt động'}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg">
+                                                        <MoreHorizontal className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end" className="w-[180px] rounded-xl p-1.5 backdrop-blur-xl bg-card/95">
+                                                    <DropdownMenuItem onClick={() => handleEdit(resource)} className="rounded-lg cursor-pointer">
+                                                        <Pencil className="mr-2 h-4 w-4" />
+                                                        <span className="text-sm">Chỉnh sửa</span>
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        onClick={() => handleDelete(resource.resource_id)}
+                                                        className="rounded-lg text-destructive focus:text-destructive cursor-pointer"
+                                                    >
+                                                        <Trash2 className="mr-2 h-4 w-4" />
+                                                        <span className="text-sm">Xóa tài nguyên</span>
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+            </Tabs>
+
+            <ResourceDialog
+                open={isDialogOpen}
+                onOpenChange={(open: boolean) => {
+                    setIsDialogOpen(open)
+                    if (!open) setEditingResource(null)
+                }}
+                resource={editingResource}
+                users={users}
+                projects={projects}
+                projectId={activeTab !== 'all' ? activeTab : undefined}
+                onSuccess={() => router.refresh()}
+            />
+        </div>
+    )
+}

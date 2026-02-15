@@ -1,0 +1,952 @@
+'use client'
+
+import { useState, useRef } from 'react'
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table'
+import {
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetFooter,
+} from '@/components/ui/sheet'
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { MoreHorizontal, Pencil, Trash2, Search, FileText, Layers, FolderKanban, Calendar, CreditCard, ArrowUpDown, Download, Upload, Printer, Mail, Phone, Shield, RotateCcw, X, Info, User, Briefcase, Tag, Clock, CheckCircle, XCircle, ChevronRight, Package, Calculator } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { useRouter } from 'next/navigation'
+import { deletePYC, createPYCs, updatePYCStatus } from '@/lib/actions/pyc'
+import { PYCSheet } from './pyc-sheet'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select'
+import * as XLSX from 'xlsx'
+import { TRANG_THAI_PHIEU, LOAI_PHIEU, MUC_DO_UU_TIEN } from '@/Config/thongso'
+import { cn } from '@/lib/utils'
+
+interface PYC {
+    request_id: string
+    title: string
+    request_type: string | null
+    status: string | null
+    total_amount: string | number | null
+    priority: string | null
+    project_id: string | null
+    task_category?: string | null
+    muc_dich_sd?: string | null
+    notes: string | null
+    created_at: string
+    created_by?: string | null
+    vat_display?: string | null
+    vat_value?: number | null
+    projects?: {
+        project_name: string
+    } | null
+    pyc_detail?: any[]
+    author?: {
+        full_name: string
+        avatar_url: string | null
+    } | null
+    approved_by?: string | null
+    approved_at?: string | null
+    approver?: {
+        full_name: string
+        avatar_url: string | null
+    } | null
+}
+
+interface Personnel {
+    email: string
+    full_name: string
+    avatar_url?: string | null
+}
+
+interface PYCListProps {
+    initialPYCs: PYC[]
+    projects: { project_id: string; project_name: string }[]
+    personnel: Personnel[]
+    projectId?: string
+}
+
+type SortKey = keyof PYC | 'project_name';
+
+export function PYCList({ initialPYCs, projects, personnel, projectId }: PYCListProps) {
+    const router = useRouter()
+    const [searchTerm, setSearchTerm] = useState('')
+    const [statusFilter, setStatusFilter] = useState('all')
+    const [typeFilter, setTypeFilter] = useState('all')
+    const [priorityFilter, setPriorityFilter] = useState('all')
+    const [projectFilter, setProjectFilter] = useState('all')
+    const [createdByFilter, setCreatedByFilter] = useState('all')
+    const [approvedByFilter, setApprovedByFilter] = useState('all')
+    const [isDialogOpen, setIsDialogOpen] = useState(false)
+    const [isInfoOpen, setIsInfoOpen] = useState(false)
+    const [editingPYC, setEditingPYC] = useState<PYC | null>(null)
+    const [selectedPYC, setSelectedPYC] = useState<PYC | null>(null)
+    const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' } | null>(null)
+    const fileInputRef = useRef<HTMLInputElement>(null)
+
+    // Extract unique creators and approvers from actual data and use joined info
+    const uniqueCreators = Array.from(new Set(initialPYCs.map(p => p.created_by).filter(Boolean)))
+    const uniqueApprovers = Array.from(new Set(initialPYCs.map(p => p.approved_by).filter(Boolean)))
+
+    const creatorOptions = uniqueCreators.map(email => {
+        const pyc = initialPYCs.find(p => p.created_by === email)
+        return {
+            email: email as string,
+            full_name: pyc?.author?.full_name || (email as string),
+            avatar_url: pyc?.author?.avatar_url
+        }
+    })
+
+    const approverOptions = uniqueApprovers.map(email => {
+        const pyc = initialPYCs.find(p => p.approved_by === email)
+        return {
+            email: email as string,
+            full_name: pyc?.approver?.full_name || (email as string),
+            avatar_url: pyc?.approver?.avatar_url
+        }
+    })
+
+    const handleSort = (key: SortKey) => {
+        let direction: 'asc' | 'desc' = 'asc'
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc'
+        }
+        setSortConfig({ key, direction })
+    }
+
+    const filteredPYCs = initialPYCs.filter((pyc) => {
+        const matchesSearch =
+            pyc.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            pyc.request_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (pyc.projects?.project_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+            (pyc.created_by?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+
+        const matchesProject = projectId
+            ? pyc.project_id === projectId
+            : projectFilter === 'all' || pyc.project_id === projectFilter
+
+        const matchesStatus = statusFilter === 'all' || pyc.status === statusFilter
+        const matchesType = typeFilter === 'all' || pyc.request_type === typeFilter
+        const matchesPriority = priorityFilter === 'all' || pyc.priority === priorityFilter
+        const matchesCreatedBy = createdByFilter === 'all' || pyc.created_by === createdByFilter
+        const matchesApprovedBy = approvedByFilter === 'all' || pyc.approved_by === approvedByFilter
+
+        return matchesSearch && matchesProject && matchesStatus && matchesType && matchesPriority && matchesCreatedBy && matchesApprovedBy
+    })
+
+    const sortedPYCs = [...filteredPYCs].sort((a, b) => {
+        if (!sortConfig) return 0
+
+        const { key, direction } = sortConfig
+        let aValue: any = a[key as keyof PYC]
+        let bValue: any = b[key as keyof PYC]
+
+        if (key === 'project_name') {
+            aValue = a.projects?.project_name || ''
+            bValue = b.projects?.project_name || ''
+        }
+
+        if (aValue === null || aValue === undefined) aValue = ''
+        if (bValue === null || bValue === undefined) bValue = ''
+
+        // Handle numeric fields
+        if (key === 'total_amount') {
+            aValue = Number(aValue)
+            bValue = Number(bValue)
+        }
+
+        if (aValue < bValue) return direction === 'asc' ? -1 : 1
+        if (aValue > bValue) return direction === 'asc' ? 1 : -1
+        return 0
+    })
+
+    const handleEdit = (pyc: PYC) => {
+        setEditingPYC(pyc)
+        setIsDialogOpen(true)
+    }
+
+    const handleDelete = async (requestId: string) => {
+        if (confirm('Bạn có chắc chắn muốn xóa phiếu yêu cầu này?')) {
+            try {
+                await deletePYC(requestId)
+                router.refresh()
+            } catch (error) {
+                console.error('Error deleting pyc:', error)
+                alert('Có lỗi xảy ra khi xóa phiếu yêu cầu.')
+            }
+        }
+    }
+
+    const handleStatusChange = async (requestId: string, status: string) => {
+        try {
+            await updatePYCStatus(requestId, status)
+            router.refresh()
+            // Update selectedPYC state to reflect change immediately in sheet
+            if (selectedPYC && selectedPYC.request_id === requestId) {
+                setSelectedPYC({ ...selectedPYC, status })
+            }
+        } catch (error) {
+            console.error('Failed to update status:', error)
+            alert('Có lỗi xảy ra khi cập nhật trạng thái')
+        }
+    }
+
+    const handleExportExcel = () => {
+        const data = sortedPYCs.map((p, index) => ({
+            'STT': index + 1,
+            'Mã phiếu': p.request_id,
+            'Tiêu đề': p.title,
+            'Dự án': p.projects?.project_name || 'Dùng chung',
+            'Phân loại': p.request_type,
+            'Mức độ ưu tiên': p.priority,
+            'Trạng thái': p.status,
+            'Tổng tiền': p.total_amount,
+            'Tạo bởi': p.created_by,
+            'Ngày tạo': new Date(p.created_at).toLocaleDateString('vi-VN')
+        }))
+
+        const ws = XLSX.utils.json_to_sheet(data)
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, ws, "Danh_sach_PYC")
+        XLSX.writeFile(wb, "Danh_sach_PYC.xlsx")
+    }
+
+    const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        const reader = new FileReader()
+        reader.onload = async (evt) => {
+            try {
+                const bstr = evt.target?.result
+                const wb = XLSX.read(bstr, { type: 'binary' })
+                const wsname = wb.SheetNames[0]
+                const ws = wb.Sheets[wsname]
+                const data = XLSX.utils.sheet_to_json(ws) as any[]
+
+                const pycsToCreate = data.map((row: any) => {
+                    // Check mandatory fields
+                    if (!row['Mã phiếu'] || !row['Tiêu đề']) {
+                        return null
+                    }
+
+                    const projectName = row['Dự án']
+                    const project = projects.find(p => p.project_name === projectName)
+
+                    return {
+                        request_id: String(row['Mã phiếu']),
+                        title: String(row['Tiêu đề']),
+                        request_type: row['Phân loại'] || null,
+                        status: row['Trạng thái'] || 'Chờ duyệt',
+                        priority: row['Mức độ ưu tiên'] || 'Thường',
+                        project_id: project ? project.project_id : null,
+                        total_amount: row['Tổng tiền'] || 0,
+                        created_at: null // Will be set to now by server if null
+                    }
+                }).filter(r => r !== null)
+
+                if (pycsToCreate.length > 0) {
+                    await createPYCs(pycsToCreate)
+                    alert(`Đã nhập thành công ${pycsToCreate.length} phiếu yêu cầu!`)
+                    router.refresh()
+                } else {
+                    alert('Không tìm thấy dữ liệu hợp lệ. Vui lòng kiểm tra lại file Excel.')
+                }
+            } catch (error) {
+                console.error('Import error:', error)
+                alert('Có lỗi xảy ra khi nhập file Excel.')
+            } finally {
+                if (fileInputRef.current) fileInputRef.current.value = ''
+            }
+        }
+        reader.readAsBinaryString(file)
+    }
+
+    return (
+        <div className="space-y-6">
+            <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+                {/* Search and Filters */}
+                <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto items-start md:items-center">
+                    <div className="relative w-full md:w-60 group">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground/40 group-focus-within:text-primary transition-colors" />
+                        <Input
+                            placeholder="Tìm kiếm phiếu..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-10 bg-card/50 border-border/50 rounded-xl focus:ring-primary/20"
+                        />
+                    </div>
+
+                    {!projectId && (
+                        <Select value={projectFilter} onValueChange={setProjectFilter}>
+                            <SelectTrigger className="w-[180px] h-10 rounded-xl bg-card/50">
+                                <SelectValue placeholder="Dự án" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Tất cả dự án</SelectItem>
+                                {projects.map(p => (
+                                    <SelectItem key={p.project_id} value={p.project_id}>{p.project_name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+
+                    <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                        <SelectTrigger className="w-[180px] h-10 rounded-xl bg-card/50">
+                            <SelectValue placeholder="Ưu tiên" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Tất cả ưu tiên</SelectItem>
+                            {MUC_DO_UU_TIEN.map(priority => (
+                                <SelectItem key={priority} value={priority}>{priority}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+
+                    <Select value={typeFilter} onValueChange={setTypeFilter}>
+                        <SelectTrigger className="w-[180px] h-10 rounded-xl bg-card/50">
+                            <SelectValue placeholder="Phân loại" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Tất cả phân loại</SelectItem>
+                            {LOAI_PHIEU.map(type => (
+                                <SelectItem key={type} value={type}>{type}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="w-[180px] h-10 rounded-xl bg-card/50">
+                            <SelectValue placeholder="Trạng thái" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Tất cả trạng thái</SelectItem>
+                            {TRANG_THAI_PHIEU.map(status => (
+                                <SelectItem key={status} value={status}>{status}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+
+                    <Select value={createdByFilter} onValueChange={setCreatedByFilter}>
+                        <SelectTrigger className="w-[180px] h-10 rounded-xl bg-card/50">
+                            <SelectValue placeholder="Tạo bởi" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Tất cả người tạo</SelectItem>
+                            {creatorOptions.map(user => (
+                                <SelectItem key={user.email} value={user.email}>
+                                    <div className="flex items-center gap-2">
+                                        <Avatar className="h-4 w-4">
+                                            <AvatarImage src={user.avatar_url || ''} />
+                                            <AvatarFallback className="text-[8px]">
+                                                {user.full_name.charAt(0)}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <span className="text-xs">{user.full_name}</span>
+                                    </div>
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+
+                    <Select value={approvedByFilter} onValueChange={setApprovedByFilter}>
+                        <SelectTrigger className="w-[180px] h-10 rounded-xl bg-card/50">
+                            <SelectValue placeholder="Duyệt bởi" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Tất cả người duyệt</SelectItem>
+                            {approverOptions.map(user => (
+                                <SelectItem key={user.email} value={user.email}>
+                                    <div className="flex items-center gap-2">
+                                        <Avatar className="h-4 w-4">
+                                            <AvatarImage src={user.avatar_url || ''} />
+                                            <AvatarFallback className="text-[8px]">
+                                                {user.full_name.charAt(0)}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <span className="text-xs">{user.full_name}</span>
+                                    </div>
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleExportExcel}
+                        className="rounded-xl px-4 h-10 bg-emerald-500/10 text-emerald-600 border-emerald-200 hover:bg-emerald-500/20"
+                        title="Xuất Excel"
+                    >
+                        <Download className="h-4 w-4 mr-2" />
+                        Xuất
+                    </Button>
+                    <div className="relative">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="rounded-xl px-4 h-10 bg-blue-500/10 text-blue-600 border-blue-200 hover:bg-blue-500/20"
+                            title="Nhập Excel"
+                        >
+                            <Upload className="h-4 w-4 mr-2" />
+                            Nhập
+                        </Button>
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleImportExcel}
+                            className="hidden"
+                            accept=".xlsx, .xls"
+                        />
+                    </div>
+
+                    <Button
+                        onClick={() => {
+                            setEditingPYC(null)
+                            setIsDialogOpen(true)
+                        }}
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 rounded-xl px-4 h-10"
+                    >
+                        <FileText className="h-4 w-4 mr-2" />
+                        Tạo phiếu
+                    </Button>
+                </div>
+            </div>
+
+            <div className="border border-border/50 rounded-xl overflow-hidden bg-card/40 backdrop-blur-xl shadow-sm font-sans">
+                <Table>
+                    <TableHeader>
+                        <TableRow className="hover:bg-transparent border-border/50 bg-muted/20">
+                            <TableHead className="w-[50px] text-center text-[12px] text-muted-foreground">STT</TableHead>
+                            <TableHead
+                                className="w-[100px] cursor-pointer hover:bg-muted/50 transition-colors text-[12px] text-muted-foreground"
+                                onClick={() => handleSort('request_id')}
+                            >
+                                <div className="flex items-center gap-1">
+                                    Mã phiếu
+                                    <ArrowUpDown className="h-3 w-3" />
+                                </div>
+                            </TableHead>
+
+                            <TableHead
+                                className="cursor-pointer hover:bg-muted/50 transition-colors text-[12px] text-muted-foreground"
+                                onClick={() => handleSort('project_name')}
+                            >
+                                <div className="flex items-center gap-1">
+                                    Dự án
+                                    <ArrowUpDown className="h-3 w-3" />
+                                </div>
+                            </TableHead>
+
+                            <TableHead
+                                className="cursor-pointer hover:bg-muted/50 transition-colors text-[12px] text-muted-foreground"
+                                onClick={() => handleSort('request_type')}
+                            >
+                                <div className="flex items-center gap-1">
+                                    Phân loại
+                                    <ArrowUpDown className="h-3 w-3" />
+                                </div>
+                            </TableHead>
+
+                            <TableHead
+                                className="cursor-pointer hover:bg-muted/50 transition-colors text-[12px] text-muted-foreground"
+                                onClick={() => handleSort('priority')}
+                            >
+                                <div className="flex items-center gap-1">
+                                    Ưu tiên
+                                    <ArrowUpDown className="h-3 w-3" />
+                                </div>
+                            </TableHead>
+
+                            <TableHead
+                                className="cursor-pointer hover:bg-muted/50 transition-colors text-[12px] text-muted-foreground"
+                                onClick={() => handleSort('title')}
+                            >
+                                <div className="flex items-center gap-1">
+                                    Nội dung
+                                    <ArrowUpDown className="h-3 w-3" />
+                                </div>
+                            </TableHead>
+
+                            <TableHead
+                                className="cursor-pointer hover:bg-muted/50 transition-colors text-[12px] text-muted-foreground"
+                                onClick={() => handleSort('status')}
+                            >
+                                <div className="flex items-center gap-1">
+                                    Trạng thái
+                                    <ArrowUpDown className="h-3 w-3" />
+                                </div>
+                            </TableHead>
+
+                            <TableHead
+                                className="text-right cursor-pointer hover:bg-muted/50 transition-colors text-[12px] text-muted-foreground"
+                                onClick={() => handleSort('total_amount')}
+                            >
+                                <div className="flex items-center justify-end gap-1">
+                                    Thành tiền
+                                    <ArrowUpDown className="h-3 w-3" />
+                                </div>
+                            </TableHead>
+
+                            <TableHead
+                                className="cursor-pointer hover:bg-muted/50 transition-colors text-[12px] text-muted-foreground"
+                                onClick={() => handleSort('created_by')}
+                            >
+                                <div className="flex items-center gap-1">
+                                    Người tạo
+                                    <ArrowUpDown className="h-3 w-3" />
+                                </div>
+                            </TableHead>
+
+                            <TableHead className="text-right text-[12px] text-muted-foreground">Thao tác</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {sortedPYCs.length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
+                                    Không tìm thấy phiếu yêu cầu nào.
+                                </TableCell>
+                            </TableRow>
+                        ) : (
+                            sortedPYCs.map((pyc, index) => (
+                                <TableRow
+                                    key={pyc.request_id}
+                                    className="group hover:bg-foreground/[0.02] transition-colors border-border/50 cursor-pointer"
+                                    onClick={() => {
+                                        setSelectedPYC(pyc)
+                                        setIsInfoOpen(true)
+                                    }}
+                                >
+                                    <TableCell className="text-center text-[13px] text-muted-foreground">{index + 1}</TableCell>
+                                    <TableCell className="font-mono text-[13px] text-primary">{pyc.request_id}</TableCell>
+                                    <TableCell>
+                                        {pyc.projects?.project_name ? (
+                                            <div className="flex items-center gap-2 text-[11px] text-primary font-medium bg-primary/5 px-2 py-0.5 rounded-full w-fit">
+                                                <FolderKanban className="h-3 w-3" />
+                                                <span className="truncate max-w-[100px]">{pyc.projects.project_name}</span>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-2 text-[11px] text-muted-foreground italic">
+                                                <Layers className="h-3 w-3" />
+                                                <span>Dùng chung</span>
+                                            </div>
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="text-xs">{pyc.request_type || '-'}</TableCell>
+                                    <TableCell>
+                                        <Badge variant="outline" className={cn(
+                                            "text-[10px] w-fit",
+                                            pyc.priority === 'Khẩn cấp' ? "text-red-500 border-red-200 bg-red-50" :
+                                                pyc.priority === 'Cao' ? "text-orange-500 border-orange-200 bg-orange-50" :
+                                                    "text-blue-500 border-blue-200 bg-blue-50"
+                                        )}>
+                                            {pyc.priority || 'Thường'}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell className="max-w-[200px]">
+                                        <div className="flex items-center gap-2">
+                                            <div className="text-sm truncate" title={pyc.title}>{pyc.title}</div>
+                                        </div>
+                                    </TableCell>
+
+                                    <TableCell>
+                                        <Badge variant="secondary" className="rounded-full px-2.5 py-0.5 text-[10px] tracking-tight bg-amber-500/10 text-amber-600 dark:text-amber-400 border-none">
+                                            {pyc.status || 'Chờ duyệt'}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono text-[13px] text-foreground">
+                                        {new Intl.NumberFormat('vi-VN').format(Number(pyc.total_amount || 0))}
+                                    </TableCell>
+                                    <TableCell className="text-[13px] text-muted-foreground py-2">
+                                        <div className="flex flex-col gap-0.5">
+                                            <div className="flex items-center gap-2">
+                                                <Avatar className="h-7 w-7 border border-border/50">
+                                                    <AvatarImage src={pyc.author?.avatar_url || ''} />
+                                                    <AvatarFallback className="text-[10px] bg-primary/5 text-primary">
+                                                        {(pyc.author?.full_name || pyc.created_by || 'U')
+                                                            .split(' ')
+                                                            .pop()
+                                                            ?.charAt(0)
+                                                            .toUpperCase()}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                                <span className="truncate max-w-[120px] text-foreground/80 font-medium">
+                                                    {pyc.author?.full_name || pyc.created_by || '-'}
+                                                </span>
+                                            </div>
+                                            <div className="text-[11px] text-muted-foreground/60 pl-9">
+                                                {new Date(pyc.created_at).toLocaleDateString('vi-VN')}
+                                            </div>
+                                        </div>
+                                    </TableCell>
+
+                                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg">
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" className="w-[180px] rounded-xl p-1.5 backdrop-blur-xl bg-card/95">
+                                                <DropdownMenuItem onClick={() => handleEdit(pyc)} className="rounded-lg cursor-pointer">
+                                                    <Pencil className="mr-2 h-4 w-4" />
+                                                    <span className="text-sm">Chỉnh sửa</span>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    onClick={() => handleDelete(pyc.request_id)}
+                                                    className="rounded-lg text-destructive focus:text-destructive cursor-pointer"
+                                                >
+                                                    <Trash2 className="mr-2 h-4 w-4" />
+                                                    <span className="text-sm">Xóa phiếu</span>
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        )}
+                    </TableBody>
+                </Table>
+            </div>
+
+            <PYCSheet
+                open={isDialogOpen}
+                onOpenChange={(open: boolean) => {
+                    setIsDialogOpen(open)
+                    if (!open) setEditingPYC(null)
+                }}
+                pyc={editingPYC}
+                projects={projects}
+                projectId={projectId}
+                onSuccess={() => router.refresh()}
+            />
+
+            {/* Info Sheet (Personnel Style) */}
+            <Sheet open={isInfoOpen} onOpenChange={setIsInfoOpen}>
+                <SheetContent side="right" className="sm:max-w-3xl p-0 flex flex-col h-full border-l border-border/50">
+                    {selectedPYC && (
+                        <>
+                            <div className="flex-1 overflow-y-auto">
+                                {/* Header Section */}
+                                <div className="p-8 pb-6 border-b border-border/50 bg-card/30 relative">
+                                    <button
+                                        onClick={() => setIsInfoOpen(false)}
+                                        className="absolute right-6 top-6 p-2 rounded-full hover:bg-muted/50 transition-colors text-muted-foreground"
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </button>
+
+                                    <div className="flex items-start gap-6">
+                                        <div className="h-20 w-20 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/20 shadow-inner">
+                                            <FileText className="h-10 w-10 text-primary" />
+                                        </div>
+
+                                        <div className="space-y-2 pt-1">
+                                            <h2 className="text-2xl font-bold tracking-tight text-foreground">{selectedPYC.title}</h2>
+                                            <div className="flex items-center gap-2 text-sm text-primary font-medium">
+                                                <Layers className="h-3.5 w-3.5" />
+                                                {selectedPYC.projects?.project_name || 'Dùng chung'}
+                                            </div>
+                                            <Badge className={cn(
+                                                "rounded-full px-3 py-0.5 text-[11px] font-medium border-none",
+                                                selectedPYC.status === 'Đã duyệt' ? "bg-emerald-500/10 text-emerald-600" :
+                                                    selectedPYC.status === 'Từ chối' ? "bg-red-500/10 text-red-600" :
+                                                        "bg-amber-500/10 text-amber-600"
+                                            )}>
+                                                {selectedPYC.status || 'Chờ duyệt'}
+                                            </Badge>
+                                        </div>
+                                    </div>
+
+                                    {/* Quick Actions Bar */}
+                                    <div className="flex items-center justify-between mt-10 px-4">
+                                        {[
+                                            { icon: Printer, label: 'In phiếu', color: 'text-blue-600', bg: 'bg-blue-50' },
+                                            { icon: Mail, label: 'Gửi Email', color: 'text-purple-600', bg: 'bg-purple-50' },
+                                            { icon: CheckCircle, label: 'Phê duyệt', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                                            { icon: XCircle, label: 'Từ chối', color: 'text-red-600', bg: 'bg-red-50' },
+                                            { icon: RotateCcw, label: 'Y/c sửa', color: 'text-amber-600', bg: 'bg-amber-50' }
+                                        ].map((action, i) => (
+                                            <div
+                                                key={i}
+                                                className="flex flex-col items-center gap-2 group cursor-pointer"
+                                                onClick={() => {
+                                                    if (action.label === 'Phê duyệt') handleStatusChange(selectedPYC.request_id, 'Đã duyệt')
+                                                    if (action.label === 'Từ chối') handleStatusChange(selectedPYC.request_id, 'Từ chối')
+                                                    if (action.label === 'Y/c sửa') handleStatusChange(selectedPYC.request_id, 'Cần chỉnh sửa')
+                                                }}
+                                            >
+                                                <div className={cn(
+                                                    "h-12 w-12 rounded-2xl flex items-center justify-center transition-all shadow-sm border border-border/50",
+                                                    "hover:scale-110",
+                                                    action.bg
+                                                )}>
+                                                    <action.icon className={cn("h-5 w-5", action.color)} />
+                                                </div>
+                                                <span className="text-[10px] text-muted-foreground font-bold tracking-tight">{action.label}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="p-8 space-y-12">
+                                    {/* Section 1: THÔNG TIN CƠ BẢN */}
+                                    <section className="space-y-6">
+                                        <div className="flex items-center gap-2 text-primary border-b border-primary/10 pb-2">
+                                            <Info className="h-4 w-4" />
+                                            <h3 className="text-sm font-bold uppercase tracking-widest">Thông tin cơ bản</h3>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-x-12 gap-y-8">
+                                            <div className="space-y-1.5">
+                                                <div className="text-[11px] font-medium text-muted-foreground tracking-wide">Mã phiếu</div>
+                                                <div className="text-[14px] font-semibold text-foreground px-3 py-2 rounded-lg bg-muted/30 border border-border/30">{selectedPYC.request_id}</div>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <div className="text-[11px] font-medium text-muted-foreground tracking-wide">Dự án áp dụng</div>
+                                                <div className="text-[14px] font-semibold text-foreground">{selectedPYC.projects?.project_name || 'Dùng chung'}</div>
+                                            </div>
+                                            <div className="space-y-1.5 col-span-2">
+                                                <div className="text-[11px] font-medium text-muted-foreground tracking-wide">Tiêu đề phiếu</div>
+                                                <div className="text-[15px] font-bold text-foreground leading-tight">{selectedPYC.title}</div>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <div className="text-[11px] font-medium text-muted-foreground tracking-wide">Loại yêu cầu</div>
+                                                <div className="text-[14px] font-semibold text-foreground">{selectedPYC.request_type || '-'}</div>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <div className="text-[11px] font-medium text-muted-foreground tracking-wide">Độ ưu tiên</div>
+                                                <Badge variant="outline" className={cn(
+                                                    "font-bold",
+                                                    selectedPYC.priority === 'Khẩn cấp' ? "text-red-600 border-red-200 bg-red-50" :
+                                                        selectedPYC.priority === 'Cao' ? "text-orange-600 border-orange-200 bg-orange-50" :
+                                                            "text-blue-600 border-blue-200 bg-blue-50"
+                                                )}>
+                                                    {selectedPYC.priority || 'Thường'}
+                                                </Badge>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <div className="text-[11px] font-medium text-muted-foreground tracking-wide">VAT mặc định</div>
+                                                <div className="text-[14px] font-semibold text-foreground">{selectedPYC.vat_display || '10%'}</div>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <div className="text-[11px] font-medium text-muted-foreground tracking-wide">Hạng mục công việc</div>
+                                                <div className="text-[14px] font-semibold text-foreground">{selectedPYC.task_category || 'Chưa chọn'}</div>
+                                            </div>
+                                            <div className="space-y-1.5 col-span-2">
+                                                <div className="text-[11px] font-medium text-muted-foreground tracking-wide">Mục đích sử dụng</div>
+                                                <div className="text-[14px] font-medium text-foreground bg-primary/5 p-4 rounded-xl border border-primary/10">
+                                                    {selectedPYC.muc_dich_sd || 'Chưa cập nhật mục đích'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </section>
+
+                                    {/* Section 2: CHI TIẾT PHIẾU (Dữ liệu từ pyc_detail) */}
+                                    <section className="space-y-6">
+                                        <div className="flex items-center gap-2 text-primary border-b border-primary/10 pb-2">
+                                            <Package className="h-4 w-4" />
+                                            <h3 className="text-sm font-bold uppercase tracking-widest">Chi tiết vật tư / Công việc</h3>
+                                        </div>
+
+                                        <div className="rounded-2xl border border-border/50 overflow-hidden shadow-sm">
+                                            <Table>
+                                                <TableHeader className="bg-muted/50">
+                                                    <TableRow className="hover:bg-transparent border-none">
+                                                        <TableHead className="text-[11px] h-10">Tên vật tư</TableHead>
+                                                        <TableHead className="text-[11px] h-10 w-[60px] text-center">Đvt</TableHead>
+                                                        <TableHead className="text-[11px] h-10 w-[60px] text-center">Số lượng</TableHead>
+                                                        <TableHead className="text-[11px] h-10 text-right">Đơn giá</TableHead>
+                                                        <TableHead className="text-[11px] h-10 text-right">Thành tiền</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {selectedPYC.pyc_detail && selectedPYC.pyc_detail.length > 0 ? (
+                                                        selectedPYC.pyc_detail.map((detail, idx) => (
+                                                            <TableRow key={idx} className="hover:bg-muted/20 border-border/30">
+                                                                <TableCell className="py-3">
+                                                                    <div className="text-[13px] font-semibold text-foreground leading-tight">{detail.item_name}</div>
+                                                                    <div className="text-[10px] text-muted-foreground mt-0.5">{detail.category}</div>
+                                                                </TableCell>
+                                                                <TableCell className="py-3 text-[12px] text-center font-medium">{detail.unit}</TableCell>
+                                                                <TableCell className="py-3 text-[12px] text-center font-bold text-primary">{detail.quantity}</TableCell>
+                                                                <TableCell className="py-3 text-[12px] text-right font-medium">
+                                                                    {new Intl.NumberFormat('vi-VN').format(detail.unit_price || 0)}
+                                                                </TableCell>
+                                                                <TableCell className="py-3 text-[12px] text-right font-bold text-primary">
+                                                                    {new Intl.NumberFormat('vi-VN').format(detail.line_total || 0)}
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        ))
+                                                    ) : (
+                                                        <TableRow>
+                                                            <TableCell colSpan={5} className="h-24 text-center text-muted-foreground italic text-xs">
+                                                                Chưa có dữ liệu chi tiết vật tư
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    )}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    </section>
+
+                                    {/* Section 3: THIẾT LẬP TÀI CHÍNH & GHI CHÚ */}
+                                    <section className="space-y-6">
+                                        <div className="flex items-center gap-2 text-primary border-b border-primary/10 pb-2">
+                                            <Calculator className="h-4 w-4" />
+                                            <h3 className="text-sm font-bold uppercase tracking-widest">Tiến độ tài chính & Ghi chú</h3>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 gap-y-6">
+                                            <div className="p-6 rounded-2xl bg-primary/5 border border-primary/10 flex items-center justify-between">
+                                                <div className="space-y-1">
+                                                    <div className="text-[11px] font-medium text-primary tracking-wide">Tổng cộng tiền phiếu</div>
+                                                    <div className="text-2xl font-black text-primary">
+                                                        {new Intl.NumberFormat('vi-VN').format(Number(selectedPYC.total_amount || 0))}
+                                                        <span className="text-xs ml-1 font-bold">VNĐ</span>
+                                                    </div>
+                                                </div>
+                                                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                                                    <CreditCard className="h-6 w-6 text-primary" />
+                                                </div>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <div className="text-[11px] font-medium text-muted-foreground tracking-wide ml-1">Ghi chú phiếu</div>
+                                                <div className="text-[14px] font-medium text-foreground italic bg-muted/30 p-4 rounded-xl border border-border/30 min-h-[80px]">
+                                                    {selectedPYC.notes || 'Không có ghi chú bổ sung'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </section>
+
+                                    {/* Section 4: NHÂN SỰ PHÊ DUYỆT */}
+                                    <section className="space-y-6 opacity-80 hover:opacity-100 transition-opacity">
+                                        <div className="flex items-center gap-2 text-muted-foreground border-b border-border/30 pb-2">
+                                            <User className="h-4 w-4" />
+                                            <h3 className="text-sm font-bold uppercase tracking-widest">Nhân sự liên quan</h3>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-8">
+                                            <div className="p-4 rounded-2xl bg-muted/30 border border-border/30 flex items-center gap-4 transition-all hover:bg-muted/50">
+                                                <Avatar className="h-12 w-12 border-2 border-background shadow-md">
+                                                    <AvatarImage src={selectedPYC.author?.avatar_url || ''} />
+                                                    <AvatarFallback className="text-xs font-bold">U</AvatarFallback>
+                                                </Avatar>
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] text-muted-foreground font-medium tracking-tight">Người lập phiếu</span>
+                                                    <span className="text-[14px] font-bold">{selectedPYC.author?.full_name || selectedPYC.created_by}</span>
+                                                    <span className="text-[10px] text-primary font-medium">{new Date(selectedPYC.created_at).toLocaleString('vi-VN')}</span>
+                                                </div>
+                                            </div>
+
+                                            {(() => {
+                                                const approverInfo = selectedPYC.approved_by
+                                                    ? personnel.find(p => p.email === selectedPYC.approved_by)
+                                                    : null;
+
+                                                if (selectedPYC.status === 'Đã duyệt') {
+                                                    return (
+                                                        <div className="p-4 rounded-2xl bg-muted/30 border border-border/30 flex items-center gap-4 transition-all hover:bg-muted/50">
+                                                            <Avatar className="h-12 w-12 border-2 border-background shadow-md">
+                                                                <AvatarImage src={approverInfo?.avatar_url || ''} />
+                                                                <AvatarFallback className="text-xs font-bold">A</AvatarFallback>
+                                                            </Avatar>
+                                                            <div className="flex flex-col">
+                                                                <span className="text-[10px] text-muted-foreground font-medium tracking-tight">Người duyệt phiếu</span>
+                                                                <span className="text-[14px] font-bold">{approverInfo?.full_name || selectedPYC.approved_by || 'Hệ thống'}</span>
+                                                                <div className="flex items-center gap-1.5 mt-0.5">
+                                                                    <Badge variant="secondary" className="text-[9px] w-fit rounded-full px-2 py-0">
+                                                                        Đã phê duyệt
+                                                                    </Badge>
+                                                                    {selectedPYC.approved_at && (
+                                                                        <span className="text-[9px] text-muted-foreground font-medium italic">
+                                                                            {new Date(selectedPYC.approved_at).toLocaleString('vi-VN')}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+
+                                                return (
+                                                    <div className="p-4 rounded-2xl bg-muted/30 border border-border/30 flex flex-col justify-center items-center gap-3 transition-all hover:bg-muted/50">
+                                                        <span className="text-[10px] text-muted-foreground font-medium tracking-tight uppercase">Trạng thái phê duyệt</span>
+                                                        <span className="text-[14px] font-bold text-amber-600">Chưa phê duyệt</span>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="h-8 rounded-full border-primary/30 text-primary font-bold hover:bg-primary/5"
+                                                            onClick={() => handleStatusChange(selectedPYC.request_id, 'Đã duyệt')}
+                                                        >
+                                                            Phê duyệt ngay
+                                                        </Button>
+                                                    </div>
+                                                );
+                                            })()}
+                                        </div>
+                                    </section>
+                                </div>
+                            </div>
+
+                            {/* Sticky Footer */}
+                            <div className="p-6 border-t border-border/50 bg-background flex gap-4">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setIsInfoOpen(false)}
+                                    className="flex-1 h-14 rounded-2xl bg-muted/30 border-none font-bold text-foreground hover:bg-muted/50 shadow-sm"
+                                >
+                                    Đóng cửa sổ
+                                </Button>
+                                <Button
+                                    onClick={() => {
+                                        handleEdit(selectedPYC!)
+                                        setIsInfoOpen(false)
+                                    }}
+                                    className="flex-[1.5] h-14 rounded-2xl bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-primary/20 transition-all active:scale-95"
+                                >
+                                    <Pencil className="h-4 w-4 mr-2" />
+                                    Chỉnh sửa phiếu
+                                </Button>
+                                <Button
+                                    variant="destructive"
+                                    onClick={() => {
+                                        handleDelete(selectedPYC!.request_id)
+                                        setIsInfoOpen(false)
+                                    }}
+                                    className="h-14 w-14 rounded-2xl p-0 shadow-lg shadow-red-500/20 transition-all active:scale-95"
+                                >
+                                    <Trash2 className="h-5 w-5" />
+                                </Button>
+                            </div>
+                        </>
+                    )}
+                </SheetContent>
+            </Sheet>
+        </div>
+    )
+}
