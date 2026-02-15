@@ -313,6 +313,18 @@ export const checklist = pgTable('checklist', {
   createdAt: timestamp('created_at').defaultNow(),
 })
 
+// 14. Notifications table (Thông báo)
+export const notifications = pgTable('notifications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id').references(() => users.email, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  message: text('message').notNull(),
+  type: text('type').default('info'), // info, success, warning, error
+  isRead: boolean('is_read').default(false),
+  link: text('link'),
+  createdAt: timestamp('created_at').defaultNow(),
+})
+
 // ============================================
 // RELATIONS
 // ============================================
@@ -327,6 +339,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   xnRecords: many(xn),
   xnDetailRecords: many(xnDetails),
   completedChecklists: many(checklist),
+  notifications: many(notifications),
 }))
 
 // Projects relations
@@ -438,6 +451,14 @@ export const checklistRelations = relations(checklist, ({ one }) => ({
   }),
 }))
 
+// Notifications relations
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
+    references: [users.email],
+  }),
+}))
+
 // ============================================
 // TYPE EXPORTS (for TypeScript inference)
 // ============================================
@@ -477,4 +498,7 @@ export type NewChecklistData = typeof checklistData.$inferInsert
 
 export type Checklist = typeof checklist.$inferSelect
 export type NewChecklist = typeof checklist.$inferInsert
+
+export type Notification = typeof notifications.$inferSelect
+export type NewNotification = typeof notifications.$inferInsert
 

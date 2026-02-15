@@ -4,6 +4,7 @@ import { Sidebar } from '@/components/sidebar'
 import { Bell, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DynamicHeader } from '@/components/dynamic-header'
+import { NotificationDropdown } from '@/components/notification-dropdown'
 import { UserNav } from '@/components/user-nav'
 
 export default async function DashboardLayout({
@@ -46,9 +47,7 @@ export default async function DashboardLayout({
           </div>
 
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" className="rounded-xl text-foreground/60 hover:text-primary hover:bg-primary/5">
-              <Bell className="h-5 w-5" />
-            </Button>
+            <NotificationDropdown />
 
             <div className="h-8 w-[1px] bg-border mx-1" />
 

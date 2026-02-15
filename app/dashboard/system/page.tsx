@@ -57,10 +57,10 @@ function SystemCard({ title, description, icon: Icon, href, color = "bg-primary/
 function SectionHeader({ title, icon: Icon }: { title: string, icon?: any }) {
     return (
         <div className="flex items-center gap-3 mb-6">
-            <div className="w-1 h-5 bg-primary/40 rounded-full" />
-            <h2 className="text-[11px] font-bold uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500 flex items-center gap-2">
-                {Icon && <Icon className="h-3.5 w-3.5" />}
-                {title}
+            <div className="w-1 h-5 bg-blue-600/40 rounded-full" />
+            <h2 className="text-[13px] font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-2 tracking-wider font-sans">
+                {Icon && <Icon className="h-4 w-4" />}
+                {title.toUpperCase()}
             </h2>
         </div>
     )
@@ -73,7 +73,7 @@ export default function SystemManagementPage() {
 
             {/* Sơ đồ */}
             <section>
-                <SectionHeader title="Sơ đồ" />
+                <SectionHeader title="SƠ ĐỒ TỔ CHỨC" />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <SystemCard
                         title="Phòng ban"
@@ -115,7 +115,7 @@ export default function SystemManagementPage() {
 
             {/* Bảo mật & Cấu hình */}
             <section>
-                <SectionHeader title="Bảo mật & Cấu hình" />
+                <SectionHeader title="THÔNG TIN CẤU HÌNH" />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <SystemCard
                         title="Thông tin công ty"

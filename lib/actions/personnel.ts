@@ -1,20 +1,10 @@
 'use server'
 
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import { revalidatePath } from 'next/cache'
-
-const adminClient = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-        auth: {
-            autoRefreshToken: false,
-            persistSession: false
-        }
-    }
-)
-
 import { createClient } from '@/lib/supabase/server'
+import { revalidatePath } from 'next/cache'
+import { getAdminClient } from '@/lib/supabase/admin'
+
+const adminClient = getAdminClient()
 
 /**
  * Get personnel with server-side pagination and filtering

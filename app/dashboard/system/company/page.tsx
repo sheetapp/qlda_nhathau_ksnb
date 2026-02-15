@@ -5,6 +5,7 @@ import { Building2, ArrowLeft, Loader2, Save } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { getCompanyInfo, updateCompanyInfo } from '@/lib/actions/system'
 import { toast } from 'sonner'
@@ -12,6 +13,7 @@ import { toast } from 'sonner'
 export default function CompanyInfoPage() {
     const [loading, setLoading] = useState(true)
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [isEditing, setIsEditing] = useState(false)
     const [formData, setFormData] = useState({
         name: '',
         address: '',
@@ -21,6 +23,7 @@ export default function CompanyInfoPage() {
         email: '',
         website: '',
     })
+    const [originalData, setOriginalData] = useState<any>(null)
 
     useEffect(() => {
         loadData()
@@ -31,7 +34,7 @@ export default function CompanyInfoPage() {
             setLoading(true)
             const data = await getCompanyInfo()
             if (data) {
-                setFormData({
+                const initialData = {
                     name: data.name || '',
                     address: data.address || '',
                     tax_code: data.tax_code || '',
@@ -39,7 +42,9 @@ export default function CompanyInfoPage() {
                     phone: data.phone || '',
                     email: data.email || '',
                     website: data.website || '',
-                })
+                }
+                setFormData(initialData)
+                setOriginalData(initialData)
             }
         } catch (error) {
             toast.error("Không thể tải thông tin công ty")
@@ -54,11 +59,18 @@ export default function CompanyInfoPage() {
             setIsSubmitting(true)
             await updateCompanyInfo(formData)
             toast.success("Cập nhật thông tin công ty thành công")
+            setIsEditing(false)
+            setOriginalData(formData)
         } catch (error) {
             toast.error("Lỗi khi cập nhật thông tin")
         } finally {
             setIsSubmitting(false)
         }
+    }
+
+    const handleCancel = () => {
+        setFormData(originalData)
+        setIsEditing(false)
     }
 
     if (loading) {
@@ -71,9 +83,29 @@ export default function CompanyInfoPage() {
 
     return (
         <div className="p-4 max-w-full space-y-8 font-sans">
-            {/* Header section removed - handled by DynamicHeader */}
-
             <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-[1.5rem] p-8 shadow-sm max-w-4xl">
+                <div className="flex items-center justify-between mb-8 border-b border-slate-100 dark:border-slate-800 pb-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-primary/10 rounded-xl text-primary">
+                            <Building2 className="h-5 w-5" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Thông tin Công ty</h2>
+                            <p className="text-[12px] text-slate-500">Quản lý các thông tin pháp lý và liên hệ</p>
+                        </div>
+                    </div>
+                    {!isEditing && (
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsEditing(true)}
+                            className="rounded-xl h-9 text-xs font-semibold px-4 border-primary/20 text-primary hover:bg-primary/5"
+                        >
+                            <Save className="h-3.5 w-3.5 mr-2" />
+                            Chỉnh sửa
+                        </Button>
+                    )}
+                </div>
+
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="md:col-span-2 space-y-1.5">
@@ -81,7 +113,11 @@ export default function CompanyInfoPage() {
                             <Input
                                 id="name"
                                 required
-                                className="h-10 rounded-xl text-[13px]"
+                                readOnly={!isEditing}
+                                className={cn(
+                                    "h-10 rounded-xl text-[13px] transition-all",
+                                    !isEditing ? "bg-slate-50 border-transparent cursor-default focus-visible:ring-0" : "bg-white"
+                                )}
                                 value={formData.name}
                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                             />
@@ -90,7 +126,11 @@ export default function CompanyInfoPage() {
                             <Label htmlFor="tax_code" className="text-[12px] font-semibold text-slate-600 pl-1">Mã số thuế</Label>
                             <Input
                                 id="tax_code"
-                                className="h-10 rounded-xl text-[13px]"
+                                readOnly={!isEditing}
+                                className={cn(
+                                    "h-10 rounded-xl text-[13px] transition-all",
+                                    !isEditing ? "bg-slate-50 border-transparent cursor-default focus-visible:ring-0" : "bg-white"
+                                )}
                                 value={formData.tax_code}
                                 onChange={(e) => setFormData({ ...formData, tax_code: e.target.value })}
                             />
@@ -99,7 +139,11 @@ export default function CompanyInfoPage() {
                             <Label htmlFor="legal_representative" className="text-[12px] font-semibold text-slate-600 pl-1">Người đại diện pháp luật</Label>
                             <Input
                                 id="legal_representative"
-                                className="h-10 rounded-xl text-[13px]"
+                                readOnly={!isEditing}
+                                className={cn(
+                                    "h-10 rounded-xl text-[13px] transition-all",
+                                    !isEditing ? "bg-slate-50 border-transparent cursor-default focus-visible:ring-0" : "bg-white"
+                                )}
                                 value={formData.legal_representative}
                                 onChange={(e) => setFormData({ ...formData, legal_representative: e.target.value })}
                             />
@@ -108,7 +152,11 @@ export default function CompanyInfoPage() {
                             <Label htmlFor="address" className="text-[12px] font-semibold text-slate-600 pl-1">Địa chỉ trụ sở</Label>
                             <Input
                                 id="address"
-                                className="h-10 rounded-xl text-[13px]"
+                                readOnly={!isEditing}
+                                className={cn(
+                                    "h-10 rounded-xl text-[13px] transition-all",
+                                    !isEditing ? "bg-slate-50 border-transparent cursor-default focus-visible:ring-0" : "bg-white"
+                                )}
                                 value={formData.address}
                                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                             />
@@ -117,7 +165,11 @@ export default function CompanyInfoPage() {
                             <Label htmlFor="phone" className="text-[12px] font-semibold text-slate-600 pl-1">Số điện thoại</Label>
                             <Input
                                 id="phone"
-                                className="h-10 rounded-xl text-[13px]"
+                                readOnly={!isEditing}
+                                className={cn(
+                                    "h-10 rounded-xl text-[13px] transition-all",
+                                    !isEditing ? "bg-slate-50 border-transparent cursor-default focus-visible:ring-0" : "bg-white"
+                                )}
                                 value={formData.phone}
                                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                             />
@@ -127,7 +179,11 @@ export default function CompanyInfoPage() {
                             <Input
                                 id="email"
                                 type="email"
-                                className="h-10 rounded-xl text-[13px]"
+                                readOnly={!isEditing}
+                                className={cn(
+                                    "h-10 rounded-xl text-[13px] transition-all",
+                                    !isEditing ? "bg-slate-50 border-transparent cursor-default focus-visible:ring-0" : "bg-white"
+                                )}
                                 value={formData.email}
                                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                             />
@@ -137,23 +193,37 @@ export default function CompanyInfoPage() {
                             <Input
                                 id="website"
                                 placeholder="https://..."
-                                className="h-10 rounded-xl text-[13px]"
+                                readOnly={!isEditing}
+                                className={cn(
+                                    "h-10 rounded-xl text-[13px] transition-all",
+                                    !isEditing ? "bg-slate-50 border-transparent cursor-default focus-visible:ring-0" : "bg-white"
+                                )}
                                 value={formData.website}
                                 onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                             />
                         </div>
                     </div>
 
-                    <div className="pt-6 border-t border-slate-100 dark:border-slate-800 flex justify-end">
-                        <Button
-                            type="submit"
-                            disabled={isSubmitting}
-                            className="bg-primary hover:bg-primary/95 text-white px-8 h-10 rounded-xl font-semibold text-sm shadow-lg shadow-primary/20 transition-all active:scale-[0.98]"
-                        >
-                            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                            Lưu cấu hình
-                        </Button>
-                    </div>
+                    {isEditing && (
+                        <div className="pt-6 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={handleCancel}
+                                className="h-10 px-6 rounded-xl text-slate-500 font-semibold text-sm hover:bg-slate-50"
+                            >
+                                Hủy bỏ
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={isSubmitting}
+                                className="bg-primary hover:bg-primary/95 text-white px-8 h-10 rounded-xl font-semibold text-sm shadow-lg shadow-primary/20 transition-all active:scale-[0.98]"
+                            >
+                                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                                Lưu thay đổi
+                            </Button>
+                        </div>
+                    )}
                 </form>
             </div>
         </div>

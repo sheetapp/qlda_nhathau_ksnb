@@ -2,23 +2,9 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { getAdminClient } from '@/lib/supabase/admin'
 
-// Using the same pattern as other actions
-// Note: We'll need a way to get the service role client for bypass RLS if needed, 
-// but for now we follow the existing pattern in the project.
-
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-
-const adminClient = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-        auth: {
-            autoRefreshToken: false,
-            persistSession: false
-        }
-    }
-)
+const adminClient = getAdminClient()
 
 export type FileRecord = {
     id: string
