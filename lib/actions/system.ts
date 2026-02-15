@@ -179,19 +179,151 @@ export async function addBranch(data: any) {
 export async function getSystemTemplates() {
     const { data, error } = await adminClient
         .from('system_templates')
-        .select('*')
+        .select(`
+            *,
+            project:projects(project_name),
+            issuing_department:departments!issuing_department_id(name)
+        `)
         .order('name')
     if (error) throw error
     return data
 }
 
-export async function addSystemTemplate(data: { name: string, type: string, file_url: string, description?: string }) {
+export async function getTemplateFiles(templateId: string) {
+    const { data, error } = await adminClient
+        .from('files')
+        .select('*')
+        .eq('table_name', 'system_templates')
+        .eq('ref_id', templateId)
+    if (error) throw error
+    return data
+}
+
+export async function addSystemTemplate(data: {
+    name: string,
+    type: string,
+    file_url: string,
+    description?: string,
+    project_id?: string,
+    category?: string,
+    template_code?: string,
+    issuing_department_id?: string,
+    status?: string,
+    effective_from?: string,
+    effective_to?: string
+}) {
+    // Xử lý project_id và issuing_department_id: Nếu là chuỗi rỗng thì chuyển thành null
+    const cleanData = {
+        ...data,
+        project_id: data.project_id || null,
+        issuing_department_id: data.issuing_department_id || null,
+        status: data.status || 'Hiệu lực'
+    }
+
     const { data: result, error } = await adminClient
         .from('system_templates')
-        .insert([data])
+        .insert([cleanData])
         .select()
         .single()
     if (error) throw error
     revalidatePath('/dashboard/system')
     return result
+}
+
+export async function updateSystemTemplate(id: string, data: any) {
+    // Loại bỏ các trường hệ thống và các object từ join (project)
+    const { id: _id, created_at: _ca, updated_at: _ua, project: _p, issuing_department: _idp, ...rest } = data
+
+    // Xử lý project_id và issuing_department_id
+    const cleanData = {
+        ...rest,
+        project_id: rest.project_id || null,
+        issuing_department_id: rest.issuing_department_id || null
+    }
+
+    const { data: result, error } = await adminClient
+        .from('system_templates')
+        .update(cleanData)
+        .eq('id', id)
+        .select()
+        .single()
+    if (error) throw error
+    revalidatePath('/dashboard/system')
+    return result
+}
+
+export async function deleteSystemTemplate(id: string) {
+    const { error } = await adminClient
+        .from('system_templates')
+        .delete()
+        .eq('id', id)
+    if (error) throw error
+    revalidatePath('/dashboard/system')
+    return true
+}
+/**
+ * CHECKLIST DATA (Mẫu biểu Checklist)
+ */
+export async function getChecklistData() {
+    const { data, error } = await adminClient
+        .from('checklist_data')
+        .select('id, document_code, payment_method, document_type, payment_group, file_id, created_at')
+        .order('document_code')
+    if (error) throw error
+    return data
+}
+
+export async function addChecklistData(data: any) {
+    // Loại bỏ các trường cũ nếu có
+    const { index: _idx, merged_type: _mt, ...cleanData } = data
+
+    const { data: result, error } = await adminClient
+        .from('checklist_data')
+        .insert([cleanData])
+        .select()
+        .single()
+    if (error) throw error
+    revalidatePath('/dashboard/system/checklist')
+    return result
+}
+
+export async function addChecklistDataBulk(data: any[]) {
+    // Loại bỏ các trường cũ cho từng dòng
+    const cleanData = data.map(item => {
+        const { index: _idx, merged_type: _mt, ...rest } = item
+        return rest
+    })
+
+    const { data: result, error } = await adminClient
+        .from('checklist_data')
+        .insert(cleanData)
+        .select()
+    if (error) throw error
+    revalidatePath('/dashboard/system/checklist')
+    return result
+}
+
+export async function updateChecklistData(id: string, data: any) {
+    // Loại bỏ các trường không còn tồn tại hoặc không muốn update
+    const { id: _id, created_at: _ca, index: _idx, merged_type: _mt, ...cleanData } = data
+
+    const { data: result, error } = await adminClient
+        .from('checklist_data')
+        .update(cleanData)
+        .eq('id', id)
+        .select()
+        .single()
+    if (error) throw error
+    revalidatePath('/dashboard/system/checklist')
+    return result
+}
+
+export async function deleteChecklistData(id: string) {
+    const { error } = await adminClient
+        .from('checklist_data')
+        .delete()
+        .eq('id', id)
+    if (error) throw error
+    revalidatePath('/dashboard/system/checklist')
+    return true
 }

@@ -187,7 +187,7 @@ export default function SystemManagementPage() {
                         title="Checklist"
                         description="Các danh mục kiểm tra quy trình nghiệp vụ."
                         icon={CheckSquare}
-                        href="/dashboard/system/templates?type=CHECKLIST"
+                        href="/dashboard/system/checklist"
                     />
                 </div>
             </section>

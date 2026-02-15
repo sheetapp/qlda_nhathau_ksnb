@@ -98,6 +98,20 @@ export const constants = pgTable('constants', {
   createdAt: timestamp('created_at').defaultNow(),
 })
 
+// 8.1 Files table (Đính kèm)
+export const files = pgTable('files', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  description: text('description'),
+  type: text('type').default('Tài liệu'), // Tài liệu, Ảnh, Đính kèm, Khác
+  fileName: text('file_name'),
+  fileUrl: text('file_url'),
+  tableName: text('table_name').notNull(),
+  refId: uuid('ref_id').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+  createdBy: text('created_by'),
+})
+
 // 3. Projects table
 export const projects = pgTable('projects', {
   projectId: text('project_id').primaryKey(),
@@ -200,6 +214,24 @@ export const pyc = pgTable('pyc', {
   projectId: text('project_id').references(() => projects.projectId, { onDelete: 'set null' }),
 })
 
+// 8.5 System_Templates table
+export const systemTemplates = pgTable('system_templates', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  type: text('type').notNull(), // PYC, DNTT, EXPORT, IMPORT, CHECKLIST
+  fileUrl: text('file_url').notNull(),
+  description: text('description'),
+  projectId: text('project_id').references(() => projects.projectId),
+  category: text('category'),
+  templateCode: text('template_code'),
+  issuingDepartmentId: uuid('issuing_department_id').references(() => departments.id),
+  status: text('status').default('Hiệu lực'),
+  effectiveFrom: timestamp('effective_from'),
+  effectiveTo: timestamp('effective_to'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
 // 9. PYC_Detail table
 export const pycDetail = pgTable('pyc_detail', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -285,11 +317,9 @@ export const xnDetails = pgTable('xn_details', {
 // 12. Checklist_Data table (mẫu biểu)
 export const checklistData = pgTable('checklist_data', {
   id: uuid('id').primaryKey().defaultRandom(),
-  index: integer('index'),
   documentCode: text('document_code').unique().notNull(),
   paymentMethod: text('payment_method'),
   documentType: text('document_type'),
-  mergedType: text('merged_type'),
   paymentGroup: text('payment_group'),
   fileId: text('file_id'),
   createdAt: timestamp('created_at').defaultNow(),

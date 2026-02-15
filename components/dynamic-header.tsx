@@ -1,6 +1,6 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronRight, Home } from 'lucide-react'
 
@@ -68,11 +68,29 @@ const ROUTE_METADATA: Record<string, { title: string; description: string }> = {
     '/dashboard/system/branches': {
         title: 'Quản lý Chi nhánh',
         description: 'Quản lý danh sách chi nhánh và địa điểm làm việc.'
+    },
+    '/dashboard/system/checklist': {
+        title: 'Mẫu Checklist',
+        description: 'Cấu hình danh mục kiểm tra hồ sơ và điều kiện thanh toán chuyên sâu.'
+    },
+    '/dashboard/system/templates': {
+        title: 'Mẫu biểu Hệ thống',
+        description: 'Quản lý các biểu mẫu chuẩn cho các nghiệp vụ trong công ty.'
     }
+}
+
+const TEMPLATE_NAMES: Record<string, string> = {
+    'PYC': 'Mẫu phiếu Yêu cầu',
+    'DNTT': 'Mẫu Đề nghị Thanh toán',
+    'EXPORT': 'Mẫu phiếu Xuất kho',
+    'IMPORT': 'Mẫu phiếu Nhập kho',
+    'CHECKLIST': 'Mẫu biểu Checklist',
 }
 
 export function DynamicHeader() {
     const pathname = usePathname()
+    const searchParams = useSearchParams()
+    const type = searchParams.get('type')
 
     // Find matching metadata or default
     const metadata = ROUTE_METADATA[pathname] || {
@@ -85,8 +103,16 @@ export function DynamicHeader() {
     const breadcrumbs = pathSegments.map((segment, index) => {
         const path = `/${pathSegments.slice(0, index + 1).join('/')}`
         const item = ROUTE_METADATA[path]
+
+        let name = item?.title || segment.charAt(0).toUpperCase() + segment.slice(1)
+
+        // Dynamic name for templates based on query param
+        if (path === '/dashboard/system/templates' && type) {
+            name = TEMPLATE_NAMES[type] || name
+        }
+
         return {
-            name: item?.title || segment.charAt(0).toUpperCase() + segment.slice(1),
+            name: name,
             href: path,
             isLast: index === pathSegments.length - 1
         }
