@@ -4,8 +4,9 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
-export function LogoutButton() {
+export function LogoutButton({ className, children }: { className?: string, children?: React.ReactNode }) {
     const supabase = createClient()
     const router = useRouter()
 
@@ -17,12 +18,12 @@ export function LogoutButton() {
     return (
         <Button
             variant="ghost"
-            size="icon"
+            size={children ? "default" : "icon"}
             onClick={handleLogout}
-            className="rounded-xl text-foreground/40 hover:text-destructive hover:bg-destructive/5 transition-all"
+            className={cn("rounded-xl text-foreground/40 hover:text-destructive hover:bg-destructive/5 transition-all", className)}
             title="Đăng xuất"
         >
-            <LogOut className="h-5 w-5" />
+            {children || <LogOut className="h-5 w-5" />}
         </Button>
     )
 }

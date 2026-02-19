@@ -1,13 +1,16 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { Layers, Plus, Search, Calendar, User, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { Layers, Plus, Search, Calendar, User, MoreHorizontal, Pencil, Trash2, Download, Upload, FileDown, FileUp, Loader2 } from 'lucide-react'
 import { DataManagementTable } from '../system/data-management-table'
+import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { addProjectItem, updateProjectItem, deleteProjectItem } from '@/lib/actions/project-items'
+import { addProjectItem, updateProjectItem, deleteProjectItem, deleteProjectItemsBulk, createProjectItemsBulk } from '@/lib/actions/project-items'
 import { getUsers } from '@/lib/actions/projects'
 import { ProjectItemDialog } from './project-item-dialog'
+import * as XLSX from 'xlsx'
+import { useRef } from 'react'
 
 interface ProjectItemListProps {
     initialItems?: any[]
@@ -19,6 +22,8 @@ export function ProjectItemList({ initialItems = [], projects = [], projectId }:
     const [items, setItems] = useState(initialItems)
     const [users, setUsers] = useState<any[]>([])
     const [loading, setLoading] = useState(false)
+    const [selectedIds, setSelectedIds] = useState<string[]>([])
+    const fileInputRef = useRef<HTMLInputElement>(null)
 
     useEffect(() => {
         const fetchUsers = async () => {
@@ -27,6 +32,106 @@ export function ProjectItemList({ initialItems = [], projects = [], projectId }:
         }
         fetchUsers()
     }, [])
+
+    const handleExportExcel = () => {
+        try {
+            const data = items.map((item, index) => ({
+                'STT': index + 1,
+                'Dự án': item.project?.project_name || item.project_id,
+                'WBS': item.wbs_code,
+                'Tên hạng mục': item.item_name,
+                'Đơn vị tính': item.unit,
+                'Khối lượng': item.quantity,
+                'Ngày bắt đầu': item.planned_start_date,
+                'Số ngày': item.duration_days,
+                'Ngày kết thúc': item.planned_end_date,
+                'Chi phí kế hoạch': item.planned_cost,
+                'Người phụ trách': item.responsible_user_id
+            }))
+
+            const ws = XLSX.utils.json_to_sheet(data)
+            const wb = XLSX.utils.book_new()
+            XLSX.utils.book_append_sheet(wb, ws, "Hạng mục")
+            XLSX.writeFile(wb, "Danh_sach_hang_muc.xlsx")
+            toast.success('Đã xuất file Excel')
+        } catch (error) {
+            console.error('Export error:', error)
+            toast.error('Lỗi khi xuất file Excel')
+        }
+    }
+
+    const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        const reader = new FileReader()
+        reader.onload = async (evt) => {
+            try {
+                setLoading(true)
+                const bstr = evt.target?.result
+                const wb = XLSX.read(bstr, { type: 'binary' })
+                const wsname = wb.SheetNames[0]
+                const ws = wb.Sheets[wsname]
+                const data = XLSX.utils.sheet_to_json(ws) as any[]
+
+                const itemsToCreate = data.map((row: any) => {
+                    // Find project
+                    const projectName = row['Dự án']
+                    const project = projects.find(p => p.project_name === projectName)
+                    const targetProjectId = project?.project_id || projectId
+
+                    if (!targetProjectId && !projectId) {
+                        return null
+                    }
+
+                    return {
+                        project_id: targetProjectId,
+                        wbs_code: row['WBS'] || row['M mã WBS'] || null,
+                        item_name: row['Tên hạng mục'] || row['Hạng mục'] || 'Chưa đặt tên',
+                        unit: row['Đơn vị tính'] || row['ĐVT'] || null,
+                        quantity: parseFloat(row['Khối lượng'] || 0),
+                        planned_start_date: row['Ngày bắt đầu'] || null,
+                        duration_days: parseInt(row['Số ngày'] || 0),
+                        planned_end_date: row['Ngày kết thúc'] || null,
+                        planned_cost: parseFloat(row['Chi phí kế hoạch'] || 0),
+                        responsible_user_id: row['Người phụ trách'] || null
+                    }
+                }).filter(t => t !== null)
+
+                if (itemsToCreate.length > 0) {
+                    const results = await createProjectItemsBulk(itemsToCreate)
+                    setItems([...results, ...items])
+                    toast.success(`Đã nhập ${itemsToCreate.length} hạng mục`)
+                } else {
+                    toast.error('Không tìm thấy dữ liệu hợp lệ')
+                }
+            } catch (error) {
+                console.error('Import error:', error)
+                toast.error('Lỗi khi nhập file Excel')
+            } finally {
+                setLoading(false)
+                if (fileInputRef.current) fileInputRef.current.value = ''
+            }
+        }
+        reader.readAsBinaryString(file)
+    }
+
+    const handleBulkDelete = async () => {
+        if (selectedIds.length === 0) return
+        if (!confirm(`Bạn có chắc chắn muốn xóa ${selectedIds.length} hạng mục đã chọn?`)) return
+
+        try {
+            setLoading(true)
+            await deleteProjectItemsBulk(selectedIds)
+            setItems(items.filter(i => !selectedIds.includes(i.id)))
+            setSelectedIds([])
+            toast.success('Đã xóa các hạng mục đã chọn')
+        } catch (error) {
+            toast.error('Lỗi khi xóa hàng loạt')
+        } finally {
+            setLoading(false)
+        }
+    }
 
     const fields = useMemo(() => {
         const base = [
@@ -203,31 +308,90 @@ export function ProjectItemList({ initialItems = [], projects = [], projectId }:
     }
 
     return (
-        <DataManagementTable
-            title={projectId ? "Hạng mục dự án" : "Dòng Hạng mục"}
-            subtitle="Phân cấp dự án thành các phần việc chính để quản lý khối lượng và chi phí."
-            icon={Layers}
-            columns={columns}
-            data={items}
-            loading={loading}
-            onAdd={handleAdd}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            fields={fields}
-            searchKey="item_name"
-            defaultValues={{
-                quantity: 0,
-                duration_days: 1,
-                planned_cost: 0
-            }}
-            renderDialog={(props: any) => (
-                <ProjectItemDialog
-                    {...props}
-                    projects={projects}
-                    users={users}
-                    projectId={projectId}
-                />
+        <div className="space-y-4">
+            {selectedIds.length > 0 && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-100 rounded-xl mb-4 animate-in fade-in slide-in-from-top-2">
+                    <span className="text-[13px] font-medium text-blue-700">
+                        Đã chọn {selectedIds.length} hạng mục
+                    </span>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleBulkDelete}
+                        className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50 text-[12px] font-bold"
+                    >
+                        <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                        Xóa hàng loạt
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedIds([])}
+                        className="h-8 text-slate-500 hover:bg-slate-100 text-[12px]"
+                    >
+                        Hủy chọn
+                    </Button>
+                </div>
             )}
-        />
+
+            <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImportExcel}
+                className="hidden"
+                accept=".xlsx, .xls"
+            />
+
+            <DataManagementTable
+                title={projectId ? "Hạng mục dự án" : "Dòng Hạng mục"}
+                subtitle="Phân cấp dự án thành các phần việc chính để quản lý khối lượng và chi phí."
+                icon={Layers}
+                columns={columns}
+                data={items}
+                loading={loading}
+                onAdd={handleAdd}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                fields={fields}
+                searchKey="item_name"
+                showSelection={true}
+                selectedIds={selectedIds}
+                onSelectionChange={setSelectedIds}
+                filters={!projectId ? [
+                    {
+                        id: 'project_id',
+                        label: 'Dự án',
+                        options: projects.map(p => ({ value: p.project_id, label: p.project_name }))
+                    }
+                ] : []}
+                actions={[
+                    {
+                        label: 'Xuất Excel',
+                        icon: Download,
+                        onClick: handleExportExcel,
+                        className: "bg-emerald-500/10 text-emerald-600 border-emerald-200 hover:bg-emerald-500/20"
+                    },
+                    {
+                        label: 'Nhập Excel',
+                        icon: Upload,
+                        onClick: () => fileInputRef.current?.click(),
+                        className: "bg-blue-500/10 text-blue-600 border-blue-200 hover:bg-blue-500/20"
+                    }
+                ]}
+                defaultValues={{
+                    quantity: 0,
+                    duration_days: 1,
+                    planned_cost: 0
+                }}
+                renderDialog={(props: any) => (
+                    <ProjectItemDialog
+                        {...props}
+                        projects={projects}
+                        users={users}
+                        projectId={projectId}
+                    />
+                )}
+            />
+        </div>
     )
 }

@@ -73,3 +73,13 @@ export async function createProjectItemsBulk(items: any[]) {
     revalidatePath('/dashboard/project-items')
     return result
 }
+export async function deleteProjectItemsBulk(ids: string[]) {
+    const { error } = await adminClient
+        .from('project_items')
+        .delete()
+        .in('id', ids)
+    if (error) throw error
+    revalidatePath('/dashboard/projects')
+    revalidatePath('/dashboard/project-items')
+    return true
+}

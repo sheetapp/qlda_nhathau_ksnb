@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/dialog'
 
 import { cn } from '@/lib/utils'
+import { Checkbox } from '@/components/ui/checkbox'
 
 interface Column {
     header: string
@@ -85,6 +86,9 @@ interface DataManagementTableProps {
         handleSubmit: (e: React.FormEvent) => Promise<void>,
         isSubmitting: boolean
     }) => React.ReactNode
+    showSelection?: boolean
+    selectedIds?: string[]
+    onSelectionChange?: (ids: string[]) => void
 }
 
 const EMPTY_OBJECT = {}
@@ -105,7 +109,10 @@ export function DataManagementTable({
     filters = [],
     actions = [],
     defaultValues = EMPTY_OBJECT,
-    renderDialog
+    renderDialog,
+    showSelection = false,
+    selectedIds = [],
+    onSelectionChange
 }: DataManagementTableProps) {
     const [searchTerm, setSearchTerm] = useState('')
     const [activeFilters, setActiveFilters] = useState<Record<string, any>>({})
@@ -122,6 +129,24 @@ export function DataManagementTable({
             setFormData(defaultValues)
         }
     }, [defaultValues, isEditMode, isAddDialogOpen])
+
+    const toggleSelectAll = (checked: boolean) => {
+        if (!onSelectionChange) return
+        if (checked) {
+            onSelectionChange(filteredData.map(item => item.id))
+        } else {
+            onSelectionChange([])
+        }
+    }
+
+    const toggleSelectItem = (id: string, checked: boolean) => {
+        if (!onSelectionChange) return
+        if (checked) {
+            onSelectionChange([...selectedIds, id])
+        } else {
+            onSelectionChange(selectedIds.filter(i => i !== id))
+        }
+    }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -384,6 +409,14 @@ export function DataManagementTable({
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="hover:bg-transparent border-border/40 bg-muted/10 h-14">
+                                {showSelection && (
+                                    <th className="px-6 w-10">
+                                        <Checkbox
+                                            checked={filteredData.length > 0 && selectedIds.length === filteredData.length}
+                                            onCheckedChange={(checked) => toggleSelectAll(!!checked)}
+                                        />
+                                    </th>
+                                )}
                                 {columns.map((col, i) => (
                                     <th key={i}
                                         style={col.width ? { width: col.width } : {}}
@@ -420,7 +453,18 @@ export function DataManagementTable({
                                 renderRows(filteredData)
                             ) : (
                                 filteredData.map((item, i) => (
-                                    <tr key={item.id || i} className="group hover:bg-foreground/[0.015] transition-all border-border/30 h-20">
+                                    <tr key={item.id || i} className={cn(
+                                        "group hover:bg-foreground/[0.015] transition-all border-border/30 h-20",
+                                        selectedIds.includes(item.id) && "bg-blue-50/30"
+                                    )}>
+                                        {showSelection && (
+                                            <td className="px-6">
+                                                <Checkbox
+                                                    checked={selectedIds.includes(item.id)}
+                                                    onCheckedChange={(checked) => toggleSelectItem(item.id, !!checked)}
+                                                />
+                                            </td>
+                                        )}
                                         {columns.map((col, j) => (
                                             <td key={j} className="px-6" style={col.width ? { width: col.width } : {}}>
                                                 {col.render ? col.render(item[col.key], item, i) : (

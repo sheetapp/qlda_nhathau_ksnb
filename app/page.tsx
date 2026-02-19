@@ -79,13 +79,13 @@ export default function Home() {
             XÂY DỰNG - NỘI THẤT
           </p>
           <p className="text-[10px] text-foreground/40 font-medium">
-            Phiên bản Tháng 1 năm 2026
+            Ver 1.0.0
           </p>
         </div>
       </main>
 
       <footer className="absolute bottom-8 text-[10px] font-medium text-foreground/60">
-        © 2026 | KSNB | 0987 726 236
+        KSNB XD © 2026
       </footer>
     </div>
   )
