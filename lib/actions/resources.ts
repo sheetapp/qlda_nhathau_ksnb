@@ -94,7 +94,7 @@ export async function getAllResources(
     let offset = 0
     let hasMore = true
 
-    console.log('[getAllResources] Starting to fetch all resources...')
+
 
     while (hasMore) {
         let query = adminClient
@@ -123,7 +123,7 @@ export async function getAllResources(
 
         if (data && data.length > 0) {
             allResources = [...allResources, ...data]
-            console.log(`[getAllResources] Fetched batch: ${data.length} resources (total so far: ${allResources.length})`)
+
 
             // If we got less than BATCH_SIZE, we've reached the end
             if (data.length < BATCH_SIZE) {
@@ -136,7 +136,7 @@ export async function getAllResources(
         }
     }
 
-    console.log(`[getAllResources] ✅ Completed! Total fetched: ${allResources.length} resources`)
+
     return allResources
 }
 /**

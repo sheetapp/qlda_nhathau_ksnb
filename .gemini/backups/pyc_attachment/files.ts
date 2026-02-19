@@ -59,13 +59,8 @@ export async function addFile(data: Omit<FileRecord, 'id' | 'created_at'>) {
         throw error
     }
 
-    if (data.table_name === 'pyc') {
-        await syncPYCAttachments(data.ref_id)
-    }
-
     // Revalidate paths based on common usage
     revalidatePath(`/dashboard/projects`)
-    revalidatePath(`/dashboard/pyc`)
 
     return result as FileRecord
 }
@@ -89,9 +84,6 @@ export async function updateFile(id: string, data: Partial<Omit<FileRecord, 'id'
  * Delete a file record
  */
 export async function deleteFile(id: string) {
-    // For sync we need the file info before delete, or just run sync after
-    const { data: file } = await adminClient.from('files').select('table_name, ref_id').eq('id', id).single()
-
     const { error } = await adminClient
         .from('files')
         .delete()
@@ -101,31 +93,4 @@ export async function deleteFile(id: string) {
         console.error('Error deleting file:', error)
         throw error
     }
-
-    if (file && file.table_name === 'pyc') {
-        await syncPYCAttachments(file.ref_id)
-    }
-
-    revalidatePath(`/dashboard/pyc`)
-}
-
-async function syncPYCAttachments(pycId: string) {
-    const { data: files, error: fetchError } = await adminClient
-        .from('files')
-        .select('name, file_url')
-        .eq('table_name', 'pyc')
-        .eq('ref_id', pycId)
-
-    if (fetchError) {
-        console.error('Error fetching files for sync:', fetchError)
-        return
-    }
-
-    // Format each file as a JSON string to fit in the text[] array
-    const attachmentStrings = files.map(f => JSON.stringify(f))
-
-    await adminClient
-        .from('pyc')
-        .update({ attachments: attachmentStrings })
-        .eq('id', pycId)
 }

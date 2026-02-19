@@ -13,6 +13,8 @@ import { PaymentRequestContainer } from '@/components/payment-request/payment-re
 import { ProjectInflowTab } from '@/components/projects/financials/project-inflow-tab'
 import { ProjectOutflowTab } from '@/components/projects/financials/project-outflow-tab'
 import { ProjectTabsNavigation } from '@/components/projects/project-tabs-navigation'
+import { SupplierList } from '@/components/system/supplier-list'
+import { ProjectItemList } from '@/components/projects/project-item-list'
 import {
     getProjectById,
     getProjects,
@@ -23,6 +25,7 @@ import { getPersonnelByProject } from '@/lib/actions/personnel'
 import { getResourcesByProject } from '@/lib/actions/resources'
 import { getPYCsByProject } from '@/lib/actions/pyc'
 import { getPaymentRequests } from '@/lib/actions/payment-requests'
+import { getProjectItems } from '@/lib/actions/project-items'
 
 // Fix for Next.js 15 params type
 type Params = Promise<{ id: string }>
@@ -37,7 +40,7 @@ export default async function ProjectDetailPage(props: {
     const projectId = params.id
     const activeTab = searchParams.tab || 'dashboard'
 
-    const [project, tasks, personnel, resources, pycs, dnttResult, allProjects, reportData] = await Promise.all([
+    const [project, tasks, personnel, resources, pycs, dnttResult, allProjects, reportData, projectItems] = await Promise.all([
         getProjectById(projectId),
         getTasksByProject(projectId),
         getPersonnelByProject(projectId),
@@ -45,7 +48,8 @@ export default async function ProjectDetailPage(props: {
         getPYCsByProject(projectId),
         getPaymentRequests(projectId, 1, 100),
         getProjects(),
-        getProjectReportData(projectId)
+        getProjectReportData(projectId),
+        getProjectItems(projectId)
     ])
 
     if (!project) {
@@ -136,9 +140,11 @@ export default async function ProjectDetailPage(props: {
                     { value: 'dashboard', label: 'Dòng tiền ròng' },
                     { value: 'inflow', label: 'Dòng Thu', count: reportData.financials.totalInflow > 0 ? 1 : 0 },
                     { value: 'outflow', label: 'Dòng Chi' },
+                    { value: 'items', label: 'Hạng mục', count: projectItems?.length || 0 },
                     { value: 'tasks', label: 'Công việc', count: tasks?.count || 0 },
                     { value: 'personnel', label: 'Nhân sự', count: personnel?.count || 0 },
                     { value: 'resources', label: 'Vật tư', count: resources?.count || 0 },
+                    { value: 'suppliers', label: 'Nhà cung cấp' },
                 ]}
             />
 
@@ -187,6 +193,12 @@ export default async function ProjectDetailPage(props: {
                     />
                 )}
 
+                {activeTab === 'items' && (
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden">
+                        <ProjectItemList initialItems={projectItems} projectId={projectId} projects={allProjects} />
+                    </div>
+                )}
+
                 {activeTab === 'tasks' && (
                     <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden">
                         <TaskList projects={allProjects} projectId={projectId} />
@@ -202,6 +214,12 @@ export default async function ProjectDetailPage(props: {
                 {activeTab === 'resources' && (
                     <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden">
                         <ResourceList users={personnel.data} projects={allProjects} projectId={projectId} />
+                    </div>
+                )}
+
+                {activeTab === 'suppliers' && (
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden">
+                        <SupplierList projectId={projectId} />
                     </div>
                 )}
             </div>

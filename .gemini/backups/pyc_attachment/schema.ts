@@ -191,16 +191,13 @@ export const ncc = pgTable('ncc', {
   address: text('address'),
   phoneNumber: text('phone_number'),
   contactPerson: text('contact_person'),
-  supplyRegion: text('supply_region'),
-  commodityGroup: text('commodity_group'),
   attachments: text('attachments').array(),
   createdAt: timestamp('created_at').defaultNow(),
 })
 
 // 8. PYC table (Phiếu yêu cầu)
 export const pyc = pgTable('pyc', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  requestId: text('request_id').notNull().unique(),
+  requestId: text('request_id').primaryKey(),
   title: text('title').notNull(),
   requestType: text('request_type'),
   status: text('status').default('Chờ duyệt'),
@@ -208,17 +205,13 @@ export const pyc = pgTable('pyc', {
   priority: text('priority'),
   vatDisplay: text('vat_display').default('10%'),
   vatValue: numeric('vat_value', { precision: 5, scale: 2 }).default('0.1'),
-  createdBy: text('created_by').references(() => users.email, { onDelete: 'set null' }),
+  createdBy: text('created_by').references(() => users.email),
   approvedBy: text('approved_by').references(() => users.email),
   createdAt: timestamp('created_at').defaultNow(),
   approvedAt: timestamp('approved_at'),
   attachments: text('attachments').array(),
   notes: text('notes'),
   projectId: text('project_id').references(() => projects.projectId, { onDelete: 'set null' }),
-  taskCategory: text('task_category'),
-  mucDichSd: text('muc_dich_sd'),
-  approvedMessage: text('approved_message'),
-  approvedHistory: text('approved_history'),
 })
 
 // 8.5 System_Templates table
@@ -242,7 +235,7 @@ export const systemTemplates = pgTable('system_templates', {
 // 9. PYC_Detail table
 export const pycDetail = pgTable('pyc_detail', {
   id: uuid('id').primaryKey().defaultRandom(),
-  requestId: text('request_id'),
+  requestId: text('request_id').references(() => pyc.requestId, { onDelete: 'cascade' }),
   category: text('category'),
   taskDescription: text('task_description'),
   materialCode: text('material_code'),
@@ -256,8 +249,6 @@ export const pycDetail = pgTable('pyc_detail', {
   // lineTotal is computed in database via GENERATED column
   lineTotal: numeric('line_total', { precision: 15, scale: 2 }),
   notes: text('notes'),
-  mucDichSd: text('muc_dich_sd'),
-  pycId: uuid('pyc_id').references(() => pyc.id, { onDelete: 'cascade' }),
 })
 
 // 10. DNTT table (Đề nghị thanh toán)

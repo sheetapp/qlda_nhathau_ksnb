@@ -53,7 +53,6 @@ import { TRANG_THAI_PHIEU, LOAI_PHIEU, MUC_DO_UU_TIEN } from '@/Config/thongso'
 import { cn } from '@/lib/utils'
 
 interface PYC {
-    id: string
     request_id: string
     title: string
     request_type: string | null
@@ -413,7 +412,11 @@ export function PYCList({ initialPYCs, projects, personnel, projectId, externalF
                             sortedPYCs.map((pyc, index) => (
                                 <TableRow
                                     key={pyc.request_id}
-                                    className="group hover:bg-foreground/[0.02] transition-colors border-border/50"
+                                    className="group hover:bg-foreground/[0.02] transition-colors border-border/50 cursor-pointer"
+                                    onClick={() => {
+                                        setSelectedPYC(pyc)
+                                        setIsInfoOpen(true)
+                                    }}
                                 >
                                     <TableCell className="pl-4" onClick={(e) => e.stopPropagation()}>
                                         <Checkbox
@@ -433,29 +436,10 @@ export function PYCList({ initialPYCs, projects, personnel, projectId, externalF
                                             {pyc.priority || 'Thường'}
                                         </Badge>
                                     </TableCell>
-                                    <TableCell
-                                        className="font-mono text-[13px] text-primary cursor-pointer hover:font-bold hover:underline transition-all"
-                                        onClick={() => {
-                                            setSelectedPYC(pyc)
-                                            setIsInfoOpen(true)
-                                        }}
-                                    >
-                                        {pyc.request_id}
-                                    </TableCell>
-                                    <TableCell
-                                        className={cn(
-                                            "cursor-pointer transition-all",
-                                            pyc.project_id ? "hover:font-semibold" : ""
-                                        )}
-                                        onClick={(e) => {
-                                            if (pyc.project_id) {
-                                                e.stopPropagation();
-                                                router.push(`/dashboard/projects/${pyc.project_id}`);
-                                            }
-                                        }}
-                                    >
+                                    <TableCell className="font-mono text-[13px] text-primary">{pyc.request_id}</TableCell>
+                                    <TableCell>
                                         {pyc.projects?.project_name ? (
-                                            <div className="flex items-center gap-2 text-[11px] text-primary font-medium bg-primary/5 px-2 py-0.5 rounded-full w-fit hover:bg-primary/10 transition-colors">
+                                            <div className="flex items-center gap-2 text-[11px] text-primary font-medium bg-primary/5 px-2 py-0.5 rounded-full w-fit">
                                                 <FolderKanban className="h-3 w-3" />
                                                 <span className="truncate max-w-[100px]">{pyc.projects.project_name}</span>
                                             </div>
@@ -473,23 +457,14 @@ export function PYCList({ initialPYCs, projects, personnel, projectId, externalF
                                         </div>
                                     </TableCell>
 
-                                    <TableCell
-                                        className="cursor-pointer group/attach"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setAttachmentPYC(pyc);
-                                        }}
-                                    >
+                                    <TableCell>
                                         {pyc.attachments && pyc.attachments.length > 0 ? (
-                                            <div className="flex items-center gap-1.5 text-primary group-hover/attach:font-bold transition-all">
+                                            <div className="flex items-center gap-1.5 text-primary">
                                                 <FileText className="h-3.5 w-3.5" />
-                                                <span className="text-[11px] font-medium underline-offset-2 group-hover/attach:underline">{pyc.attachments.length}</span>
+                                                <span className="text-[11px] font-medium">{pyc.attachments.length}</span>
                                             </div>
                                         ) : (
-                                            <div className="flex items-center gap-1.5 text-muted-foreground italic group-hover/attach:text-primary transition-colors">
-                                                <Paperclip className="h-3 w-3 opacity-50 group-hover/attach:opacity-100" />
-                                                <span className="text-[10px]">0</span>
-                                            </div>
+                                            <span className="text-[10px] text-muted-foreground italic">-</span>
                                         )}
                                     </TableCell>
 
@@ -671,7 +646,7 @@ export function PYCList({ initialPYCs, projects, personnel, projectId, externalF
                         {attachmentPYC && (
                             <AttachmentList
                                 tableName="pyc"
-                                refId={attachmentPYC.id}
+                                refId={attachmentPYC.request_id}
                                 title="Danh sách tài liệu đính kèm"
                             />
                         )}
@@ -1005,7 +980,7 @@ export function PYCList({ initialPYCs, projects, personnel, projectId, externalF
                                         <div className="bg-muted/10 rounded-2xl border border-dashed border-border/40 p-1">
                                             <AttachmentList
                                                 tableName="pyc"
-                                                refId={selectedPYC.id}
+                                                refId={selectedPYC.request_id}
                                                 title=""
                                             />
                                         </div>

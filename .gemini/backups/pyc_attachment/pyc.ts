@@ -18,7 +18,6 @@ export async function getPYCs() {
         const { data, error } = await adminClient
             .from('pyc')
             .select(`
-                id,
                 *,
                 projects (
                     project_name
@@ -181,10 +180,10 @@ export async function createPYC(
         return sum + (qty * price)
     }, 0)
 
-    // 1. Insert Header
-    const { data: newPYC, error: headerError } = await adminClient
+    // 1. Insert/Upsert Header
+    const { error: headerError } = await adminClient
         .from('pyc')
-        .insert({
+        .upsert({
             request_id: headerData.request_id,
             title: headerData.title,
             request_type: headerData.request_type || null,
@@ -206,18 +205,14 @@ export async function createPYC(
                 message: 'Khởi tạo phiếu',
                 at: new Date().toISOString()
             }])
-        })
-        .select()
-        .single()
+        }, { onConflict: 'request_id' })
 
     if (headerError) throw headerError
-    if (!newPYC) throw new Error('Failed to create PYC record')
 
     // 2. Insert Details
     if (details.length > 0) {
         const detailsToInsert = details.map(item => {
             return {
-                pyc_id: newPYC.id, // Use the new UUID id
                 request_id: headerData.request_id,
                 item_name: item.item_name,
                 category: item.category || null,
@@ -230,6 +225,7 @@ export async function createPYC(
                 vat_value: item.vat_value !== undefined ? Number(item.vat_value) : null,
                 muc_dich_sd: item.muc_dich_sd || null,
                 notes: item.notes || null
+                // line_total is a generated column in DB
             }
         })
 
@@ -287,7 +283,7 @@ export async function updatePYC(
     // 1. Update Header
     const { data: pyc, error: fetchError } = await adminClient
         .from('pyc')
-        .select('id, approved_history')
+        .select('approved_history')
         .eq('request_id', requestId)
         .single()
 
@@ -326,7 +322,7 @@ export async function updatePYC(
             total_amount: totalAmount,
             approved_history: JSON.stringify(history)
         })
-        .eq('id', pyc.id)
+        .eq('request_id', requestId)
 
     if (headerError) throw headerError
 
@@ -335,14 +331,13 @@ export async function updatePYC(
     const { error: deleteError } = await adminClient
         .from('pyc_detail')
         .delete()
-        .eq('pyc_id', pyc.id)
+        .eq('request_id', requestId)
 
     if (deleteError) throw deleteError
 
     if (details.length > 0) {
         const detailsToInsert = details.map(item => {
             return {
-                pyc_id: pyc.id,
                 request_id: requestId,
                 item_name: item.item_name,
                 category: item.category || null,
@@ -355,6 +350,7 @@ export async function updatePYC(
                 vat_value: item.vat_value !== undefined ? Number(item.vat_value) : null,
                 muc_dich_sd: item.muc_dich_sd || null,
                 notes: item.notes || null
+                // line_total is a generated column in DB
             }
         })
 

@@ -13,6 +13,7 @@ import {
     ShieldCheck,
     Users,
     Settings2,
+    Layers,
     ChevronRight,
     ChevronLeft,
     Sun,
@@ -30,8 +31,10 @@ import { Button } from '@/components/ui/button'
 const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Dự án', href: '/dashboard/projects', icon: FolderKanban },
+    { name: 'Hạng mục', href: '/dashboard/project-items', icon: Layers },
     { name: 'Công việc', href: '/dashboard/tasks', icon: CheckSquare },
     { name: 'Tài nguyên', href: '/dashboard/resources', icon: Package },
+    { name: 'Nhà cung cấp', href: '/dashboard/system/suppliers', icon: Users },
     { name: 'Phiếu yêu cầu', href: '/dashboard/pyc', icon: FileText },
     { name: 'Đề nghị thanh toán', href: '/dashboard/dntt', icon: Wallet },
     { name: 'Kho vật tư', href: '/dashboard/warehouse', icon: Warehouse },
@@ -132,9 +135,11 @@ export function Sidebar() {
                             { name: 'Dòng tiền ròng', tab: 'dashboard', icon: BarChart3 },
                             { name: 'Dòng Thu (Inflow)', tab: 'inflow', icon: TrendingUp },
                             { name: 'Dòng Chi (Outflow)', tab: 'outflow', icon: TrendingDown },
+                            { name: 'Hạng mục', tab: 'items', icon: Layers },
                             { name: 'Công việc', tab: 'tasks', icon: CheckSquare },
                             { name: 'Nhân sự', tab: 'personnel', icon: Users },
                             { name: 'Vật tư', tab: 'resources', icon: Package },
+                            { name: 'Nhà cung cấp', tab: 'suppliers', icon: Users },
                         ].map((item) => {
                             const projectId = pathname.split('/dashboard/projects/')[1]?.split('/')[0]
                             const href = `/dashboard/projects/${projectId}?tab=${item.tab}`

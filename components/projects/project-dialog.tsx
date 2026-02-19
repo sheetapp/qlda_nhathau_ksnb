@@ -211,7 +211,7 @@ export function ProjectDialog({
                 actual_end_date: formData.actual_end_date || undefined,
             }
 
-            console.log('ProjectDialog: Submitting data:', submitData)
+
 
             if (isEdit && project) {
                 await updateProject(project.project_id, submitData)

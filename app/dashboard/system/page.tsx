@@ -70,7 +70,25 @@ export default function SystemManagementPage() {
     return (
         <div className="p-4 max-w-full space-y-12 pb-20 font-sans">
             {/* Redundant header removed - handled by DynamicHeader */}
-
+            <section>
+                <SectionHeader title="THÔNG TIN CÔNG TY" />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <SystemCard
+                        title="Thông tin công ty"
+                        description="Thiết lập thông tin pháp nhân và thương hiệu."
+                        icon={Building2}
+                        href="/dashboard/system/company"
+                        color="bg-purple-50 text-purple-600 dark:bg-purple-500/10"
+                    />
+                    <SystemCard
+                        title="Chi nhánh"
+                        description="Quản lý danh sách chi nhánh và địa điểm làm việc."
+                        icon={MapPin}
+                        href="/dashboard/system/branches"
+                        color="bg-slate-100 text-slate-600 dark:bg-slate-800"
+                    />
+                </div>
+            </section>
             {/* Sơ đồ */}
             <section>
                 <SectionHeader title="SƠ ĐỒ TỔ CHỨC" />
@@ -113,24 +131,31 @@ export default function SystemManagementPage() {
                 </div>
             </section>
 
+            {/* Thuộc tính */}
+            <section>
+                <SectionHeader title="THUỘC TÍNH" icon={Settings2} />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <SystemCard
+                        title="Nhà cung cấp"
+                        description="Quản lý danh mục đối tác và nhà cung cấp."
+                        icon={Building2}
+                        href="/dashboard/system/suppliers"
+                        color="bg-amber-50 text-amber-600 dark:bg-amber-500/10"
+                    />
+                    <SystemCard
+                        title="Quản lý chi phí"
+                        description="Cấu hình loại chi phí và nhóm chi phí hệ thống."
+                        icon={Wallet}
+                        href="/dashboard/system/expenses"
+                        color="bg-orange-50 text-orange-600 dark:bg-orange-500/10"
+                    />
+                </div>
+            </section>
+
             {/* Bảo mật & Cấu hình */}
             <section>
                 <SectionHeader title="THÔNG TIN CẤU HÌNH" />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <SystemCard
-                        title="Thông tin công ty"
-                        description="Thiết lập thông tin pháp nhân và thương hiệu."
-                        icon={Building2}
-                        href="/dashboard/system/company"
-                        color="bg-purple-50 text-purple-600 dark:bg-purple-500/10"
-                    />
-                    <SystemCard
-                        title="Chi nhánh"
-                        description="Quản lý danh sách chi nhánh và địa điểm làm việc."
-                        icon={MapPin}
-                        href="/dashboard/system/branches"
-                        color="bg-slate-100 text-slate-600 dark:bg-slate-800"
-                    />
                     <SystemCard
                         title="Phân quyền"
                         description="Quản lý vai trò và quyền hạn truy cập hệ thống."

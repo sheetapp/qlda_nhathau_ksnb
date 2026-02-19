@@ -9,10 +9,10 @@ export async function getNotifications() {
         data: { user },
     } = await supabase.auth.getUser()
 
-    console.log('[getNotifications] Current user:', user?.email)
+
 
     if (!user?.email) {
-        console.log('[getNotifications] No user email found, returning empty array')
+
         return []
     }
 
@@ -32,13 +32,7 @@ export async function getNotifications() {
             throw error
         }
 
-        console.log('[getNotifications] Found notifications:', data?.length || 0)
-        console.log('[getNotifications] Notifications:', data?.map(n => ({
-            id: n.id,
-            user_id: n.user_id,
-            title: n.title,
-            is_read: n.is_read
-        })))
+
 
         return data || []
     } catch (error) {

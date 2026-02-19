@@ -7,9 +7,10 @@ import { useRouter } from 'next/navigation'
 
 interface PaymentRequestActionsProps {
     data: any[]
+    onOpenForm?: () => void
 }
 
-export function PaymentRequestActions({ data }: PaymentRequestActionsProps) {
+export function PaymentRequestActions({ data, onOpenForm }: PaymentRequestActionsProps) {
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -55,7 +56,7 @@ export function PaymentRequestActions({ data }: PaymentRequestActionsProps) {
 
             <Button
                 className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 rounded-xl px-4 h-9 text-xs"
-                onClick={() => alert('Tính năng Tạo đề nghị đang được phát triển')}
+                onClick={onOpenForm}
             >
                 <Plus className="h-4 w-4 mr-2" />
                 Tạo đề nghị

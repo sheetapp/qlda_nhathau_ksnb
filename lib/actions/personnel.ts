@@ -79,7 +79,7 @@ export async function getAllPersonnel(projectId?: string | null) {
     let offset = 0
     let hasMore = true
 
-    console.log('[getAllPersonnel] Starting to fetch all personnel...')
+
 
     while (hasMore) {
         let query = adminClient
@@ -98,7 +98,7 @@ export async function getAllPersonnel(projectId?: string | null) {
 
         if (data && data.length > 0) {
             allPersonnel = [...allPersonnel, ...data]
-            console.log(`[getAllPersonnel] Fetched batch: ${data.length} personnel (total so far: ${allPersonnel.length})`)
+
 
             if (data.length < BATCH_SIZE) {
                 hasMore = false
@@ -110,7 +110,7 @@ export async function getAllPersonnel(projectId?: string | null) {
         }
     }
 
-    console.log(`[getAllPersonnel] ✅ Completed! Total fetched: ${allPersonnel.length} personnel`)
+
     return allPersonnel
 }
 

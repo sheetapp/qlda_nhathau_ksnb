@@ -78,14 +78,14 @@ class ResourceStore {
         this.isLoading = true
         this.notify() // Notify that loading has started
 
-        console.log('[ResourceStore] Starting refresh...')
+
         const startTime = Date.now()
 
         try {
             const data = await getAllResources()
             const duration = Date.now() - startTime
 
-            console.log(`[ResourceStore] Refresh successful! Fetched ${data.length} resources in ${duration}ms`)
+
 
             this.resources = data as Resource[]
             this.lastUpdated = Date.now()
@@ -103,7 +103,7 @@ class ResourceStore {
         } finally {
             this.isLoading = false
             this.notify() // Notify that loading has finished
-            console.log('[ResourceStore] Refresh completed, isLoading = false')
+
         }
     }
 

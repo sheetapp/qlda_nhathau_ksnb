@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import Link from 'next/link'
+import * as React from 'react'
 import {
     Dialog,
     DialogContent,
@@ -55,6 +56,7 @@ interface Action {
     icon?: any
     onClick: () => void
     variant?: "default" | "outline" | "ghost" | "secondary"
+    className?: string
 }
 
 interface DataManagementTableProps {
@@ -73,7 +75,19 @@ interface DataManagementTableProps {
     hierarchical?: boolean
     filters?: Filter[]
     actions?: Action[]
+    renderDialog?: (props: {
+        open: boolean,
+        onOpenChange: (open: boolean) => void,
+        isEditMode: boolean,
+        editingId: string | null,
+        formData: any,
+        setFormData: (data: any) => void,
+        handleSubmit: (e: React.FormEvent) => Promise<void>,
+        isSubmitting: boolean
+    }) => React.ReactNode
 }
+
+const EMPTY_OBJECT = {}
 
 export function DataManagementTable({
     title,
@@ -90,7 +104,8 @@ export function DataManagementTable({
     hierarchical = false,
     filters = [],
     actions = [],
-    defaultValues = {}
+    defaultValues = EMPTY_OBJECT,
+    renderDialog
 }: DataManagementTableProps) {
     const [searchTerm, setSearchTerm] = useState('')
     const [activeFilters, setActiveFilters] = useState<Record<string, any>>({})
@@ -271,79 +286,97 @@ export function DataManagementTable({
                     <div className="flex items-center gap-2">
                         {actions.map((action, i) => {
                             const ActionIcon = action.icon
+                            const isIconOnly = !action.label
                             return (
                                 <Button
                                     key={i}
                                     variant={action.variant || "outline"}
-                                    className="h-10 rounded-xl px-4 font-medium transition-all active:scale-[0.98] text-xs flex items-center gap-2"
+                                    size={isIconOnly ? "icon" : "sm"}
+                                    className={cn(
+                                        "h-10 rounded-xl font-medium transition-all active:scale-[0.98] text-xs flex items-center gap-2",
+                                        !isIconOnly && "px-4",
+                                        action.className
+                                    )}
                                     onClick={action.onClick}
+                                    title={action.label || undefined}
                                 >
-                                    {ActionIcon && <ActionIcon className="h-4 w-4" />}
+                                    {ActionIcon && <ActionIcon className={cn("h-4 w-4", !isIconOnly && "mr-0")} />}
                                     {action.label}
                                 </Button>
                             )
                         })}
 
-                        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                            <DialogTrigger asChild>
-                                <Button className="h-10 rounded-xl px-5 bg-primary hover:bg-primary/95 text-primary-foreground shadow-md shadow-primary/10 font-medium transition-all active:scale-[0.98] text-xs flex items-center gap-2">
-                                    <Plus className="h-4 w-4" />
-                                    Thêm mới
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent className="sm:max-w-2xl rounded-[1.5rem] border-border/40 bg-card overflow-hidden">
-                                <DialogHeader>
-                                    <DialogTitle className="text-lg font-bold">
-                                        {isEditMode ? `Cập nhật ${title.toLowerCase()}` : `Thêm ${title.toLowerCase()} mới`}
-                                    </DialogTitle>
-                                    <DialogDescription className="text-xs">
-                                        Nhập thông tin để quản lý hệ thống.
-                                    </DialogDescription>
-                                </DialogHeader>
-                                <form onSubmit={handleSubmit} className="space-y-4 py-4">
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
-                                        {fields.map((field) => (
-                                            <div key={field.id} className={cn(
-                                                "space-y-1.5",
-                                                field.fullWidth && "sm:col-span-2"
-                                            )}>
-                                                <Label htmlFor={field.id} className="text-[12px] font-semibold text-slate-600 pl-1">{field.label} {field.required && "*"}</Label>
-                                                {field.type === 'select' ? (
-                                                    <select
-                                                        id={field.id}
-                                                        required={field.required}
-                                                        className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white dark:bg-slate-950 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/20"
-                                                        value={formData[field.id] || ''}
-                                                        onChange={(e) => setFormData({ ...formData, [field.id]: e.target.value })}
-                                                    >
-                                                        <option value="">Chọn một giá trị...</option>
-                                                        {field.options?.map(opt => (
-                                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                                        ))}
-                                                    </select>
-                                                ) : (
-                                                    <Input
-                                                        id={field.id}
-                                                        type={field.type || "text"}
-                                                        placeholder={field.placeholder}
-                                                        required={field.required}
-                                                        className="h-10 rounded-xl text-[13px]"
-                                                        value={formData[field.id] || ''}
-                                                        onChange={(e) => setFormData({ ...formData, [field.id]: e.target.value })}
-                                                    />
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <DialogFooter className="pt-4">
-                                        <Button type="submit" disabled={isSubmitting} className="w-full h-11 rounded-xl bg-primary text-sm font-bold shadow-lg shadow-primary/20">
-                                            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                            Lưu dữ liệu
-                                        </Button>
-                                    </DialogFooter>
-                                </form>
-                            </DialogContent>
-                        </Dialog>
+                        {renderDialog ? renderDialog({
+                            open: isAddDialogOpen,
+                            onOpenChange: setIsAddDialogOpen,
+                            isEditMode,
+                            editingId,
+                            formData,
+                            setFormData,
+                            handleSubmit,
+                            isSubmitting
+                        }) : (
+                            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                                <DialogTrigger asChild>
+                                    <Button className="h-10 rounded-xl px-5 bg-primary hover:bg-primary/95 text-primary-foreground shadow-md shadow-primary/10 font-medium transition-all active:scale-[0.98] text-xs flex items-center gap-2">
+                                        <Plus className="h-4 w-4" />
+                                        Thêm mới
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="sm:max-w-2xl rounded-[1.5rem] border-border/40 bg-card overflow-hidden text-slate-900">
+                                    <DialogHeader>
+                                        <DialogTitle className="text-lg font-bold text-slate-900">
+                                            {isEditMode ? `Cập nhật ${title.toLowerCase()}` : `Thêm ${title.toLowerCase()} mới`}
+                                        </DialogTitle>
+                                        <DialogDescription className="text-xs text-slate-500">
+                                            Nhập thông tin để quản lý hệ thống.
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <form onSubmit={handleSubmit} className="space-y-4 py-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4">
+                                            {fields.map((field) => (
+                                                <div key={field.id} className={cn(
+                                                    "space-y-1.5",
+                                                    field.fullWidth && "sm:col-span-2"
+                                                )}>
+                                                    <Label htmlFor={field.id} className="text-[12px] font-semibold text-slate-600 pl-1">{field.label} {field.required && "*"}</Label>
+                                                    {field.type === 'select' ? (
+                                                        <select
+                                                            id={field.id}
+                                                            required={field.required}
+                                                            className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-white dark:bg-slate-950 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/20 text-slate-900"
+                                                            value={formData[field.id] || ''}
+                                                            onChange={(e) => setFormData({ ...formData, [field.id]: e.target.value })}
+                                                        >
+                                                            <option value="">Chọn một giá trị...</option>
+                                                            {field.options?.map(opt => (
+                                                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                            ))}
+                                                        </select>
+                                                    ) : (
+                                                        <Input
+                                                            id={field.id}
+                                                            type={field.type || "text"}
+                                                            placeholder={field.placeholder}
+                                                            required={field.required}
+                                                            className="h-10 rounded-xl text-[13px] text-slate-900"
+                                                            value={formData[field.id] || ''}
+                                                            onChange={(e) => setFormData({ ...formData, [field.id]: e.target.value })}
+                                                        />
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <DialogFooter className="pt-4">
+                                            <Button type="submit" disabled={isSubmitting} className="w-full h-11 rounded-xl bg-primary text-sm font-bold shadow-lg shadow-primary/20">
+                                                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                                                Lưu dữ liệu
+                                            </Button>
+                                        </DialogFooter>
+                                    </form>
+                                </DialogContent>
+                            </Dialog>
+                        )}
                     </div>
                 </div>
 

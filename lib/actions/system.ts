@@ -327,3 +327,122 @@ export async function deleteChecklistData(id: string) {
     revalidatePath('/dashboard/system/checklist')
     return true
 }
+
+/**
+ * NCC (Nhà cung cấp)
+ */
+export async function getSuppliers(projectId?: string) {
+    let query = adminClient
+        .from('ncc')
+        .select('*')
+
+    if (projectId) {
+        query = query.eq('project_id', projectId)
+    }
+
+    const { data, error } = await query.order('supplier_name')
+    if (error) throw error
+    return data
+}
+
+export async function addSupplier(data: any) {
+    const { data: result, error } = await adminClient
+        .from('ncc')
+        .insert([data])
+        .select()
+        .single()
+    if (error) throw error
+    revalidatePath('/dashboard/system/suppliers')
+    if (data.project_id) {
+        revalidatePath(`/dashboard/projects/${data.project_id}`)
+    }
+    return result
+}
+
+export async function addSuppliers(suppliers: any[]) {
+    const { data: result, error } = await adminClient
+        .from('ncc')
+        .upsert(suppliers, { onConflict: 'id' })
+        .select()
+    if (error) {
+        console.error("Error in addSuppliers:", error)
+        throw error
+    }
+    revalidatePath('/dashboard/system/suppliers')
+    return result
+}
+
+export async function updateSupplier(id: string, data: any) {
+    const { id: _id, created_at: _ca, ...rest } = data
+    const { data: result, error } = await adminClient
+        .from('ncc')
+        .update(rest)
+        .eq('id', id)
+        .select()
+        .single()
+    if (error) throw error
+    revalidatePath('/dashboard/system/suppliers')
+    if (rest.project_id) {
+        revalidatePath(`/dashboard/projects/${rest.project_id}`)
+    }
+    return result
+}
+
+export async function deleteSupplier(id: string, projectId?: string) {
+    const { error } = await adminClient
+        .from('ncc')
+        .delete()
+        .eq('id', id)
+    if (error) throw error
+    revalidatePath('/dashboard/system/suppliers')
+    if (projectId) {
+        revalidatePath(`/dashboard/projects/${projectId}`)
+    }
+    return true
+}
+
+/**
+ * EXPENSE CATEGORIES (Danh mục chi phí)
+ */
+export async function getExpenseCategories() {
+    const { data, error } = await adminClient
+        .from('expense_categories')
+        .select('*')
+        .order('type_name')
+    if (error) throw error
+    return data
+}
+
+export async function addExpenseCategory(data: any) {
+    const { data: result, error } = await adminClient
+        .from('expense_categories')
+        .insert([data])
+        .select()
+        .single()
+    if (error) throw error
+    revalidatePath('/dashboard/system')
+    return result
+}
+
+export async function updateExpenseCategory(id: string, data: any) {
+    const { id: _id, created_at: _ca, ...rest } = data
+    const { data: result, error } = await adminClient
+        .from('expense_categories')
+        .update(rest)
+        .eq('id', id)
+        .select()
+        .single()
+    if (error) throw error
+    revalidatePath('/dashboard/system')
+    return result
+}
+
+export async function deleteExpenseCategory(id: string) {
+    const { error } = await adminClient
+        .from('expense_categories')
+        .delete()
+        .eq('id', id)
+    if (error) throw error
+    revalidatePath('/dashboard/system')
+    return true
+}

@@ -16,6 +16,7 @@ import {
     SelectValue,
 } from '@/components/ui/select'
 import { createOneTask, updateOneTask, getProjects } from '@/lib/actions/tasks'
+import { getProjectItems } from '@/lib/actions/project-items'
 import { StandardDialogLayout } from '@/components/ui/dialog-layout'
 import { TASK_CATEGORIES, TASK_STATUS } from '@/Config/thongso'
 
@@ -30,6 +31,7 @@ interface Task {
     start_date: string | null
     end_date: string | null
     status: string | null
+    project_item_id?: string | null
 }
 
 interface TaskDialogProps {
@@ -49,6 +51,7 @@ export function TaskDialog({
 }: TaskDialogProps) {
     const [isLoading, setIsLoading] = useState(false)
     const [projects, setProjects] = useState<{ project_id: string; project_name: string }[]>([])
+    const [projectItems, setProjectItems] = useState<any[]>([])
     const isEdit = !!task
 
     const [formData, setFormData] = useState({
@@ -61,6 +64,7 @@ export function TaskDialog({
         start_date: '',
         end_date: '',
         status: 'Chờ thực hiện',
+        project_item_id: '',
     })
 
     useEffect(() => {
@@ -78,6 +82,22 @@ export function TaskDialog({
     }, [open, propProjectId])
 
     useEffect(() => {
+        const fetchItems = async (pid: string) => {
+            try {
+                const data = await getProjectItems(pid)
+                setProjectItems(data || [])
+            } catch (error) {
+                console.error('Error fetching project items:', error)
+            }
+        }
+
+        const pid = formData.project_id || propProjectId
+        if (open && pid) {
+            fetchItems(pid)
+        }
+    }, [open, formData.project_id, propProjectId])
+
+    useEffect(() => {
         if (open) {
             if (task) {
                 setFormData({
@@ -90,6 +110,7 @@ export function TaskDialog({
                     start_date: task.start_date || '',
                     end_date: task.end_date || '',
                     status: task.status || 'Chờ thực hiện',
+                    project_item_id: task.project_item_id || '',
                 })
             } else {
                 setFormData({
@@ -102,6 +123,7 @@ export function TaskDialog({
                     start_date: '',
                     end_date: '',
                     status: 'Chờ thực hiện',
+                    project_item_id: '',
                 })
             }
         }
@@ -120,6 +142,7 @@ export function TaskDialog({
                 description: formData.description || null,
                 start_date: formData.start_date || null,
                 end_date: formData.end_date || null,
+                project_item_id: formData.project_item_id === 'none' || !formData.project_item_id ? null : formData.project_item_id,
             }
 
             if (!data.project_id) {
@@ -186,13 +209,32 @@ export function TaskDialog({
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="grid gap-2">
-                                <Label htmlFor="task_category">Hạng mục</Label>
+                                <Label htmlFor="project_item_id">Hạng mục (WBS)</Label>
+                                <Select
+                                    value={formData.project_item_id}
+                                    onValueChange={(value) => setFormData({ ...formData, project_item_id: value })}
+                                >
+                                    <SelectTrigger id="project_item_id">
+                                        <SelectValue placeholder="Chọn hạng mục dự án" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">Không có hạng mục</SelectItem>
+                                        {projectItems.map((item) => (
+                                            <SelectItem key={item.id} value={item.id}>
+                                                {item.wbs_code ? `${item.wbs_code} - ${item.item_name}` : item.item_name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="task_category">Loại công việc</Label>
                                 <Select
                                     value={formData.task_category}
                                     onValueChange={(value) => setFormData({ ...formData, task_category: value })}
                                 >
                                     <SelectTrigger id="task_category">
-                                        <SelectValue placeholder="Chọn hạng mục" />
+                                        <SelectValue placeholder="Chọn loại" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {TASK_CATEGORIES.map((cat) => (
@@ -202,15 +244,6 @@ export function TaskDialog({
                                         ))}
                                     </SelectContent>
                                 </Select>
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="task_unit">Đơn vị tính</Label>
-                                <Input
-                                    id="task_unit"
-                                    value={formData.task_unit}
-                                    onChange={(e) => setFormData({ ...formData, task_unit: e.target.value })}
-                                    placeholder="VD: m², m³, cái"
-                                />
                             </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">

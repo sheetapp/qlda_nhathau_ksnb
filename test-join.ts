@@ -1,0 +1,1 @@
+import { getAdminClient } from './lib/supabase/admin'; async function test() { const admin = getAdminClient(); const { data, error } = await admin.from('pyc').select('*, approver:users!approved_by(full_name)').limit(1); console.log('Error:', error); console.log('Data:', data); } test(); 

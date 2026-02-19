@@ -1,0 +1,1 @@
+import { getApprovedPYCs } from './lib/actions/payment-requests'; async function test() { try { await getApprovedPYCs(); console.log('Success'); } catch (e) { console.error('Caught:', e); } } test(); 

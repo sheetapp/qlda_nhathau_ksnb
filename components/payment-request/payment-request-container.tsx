@@ -16,6 +16,7 @@ interface PaymentRequestContainerProps {
 
 export function PaymentRequestContainer({ initialData, totalCount, projectId }: PaymentRequestContainerProps) {
     const [searchTerm, setSearchTerm] = useState('')
+    const [isFormOpen, setIsFormOpen] = useState(false)
 
     return (
         <Tabs defaultValue="list" className="h-full flex flex-col">
@@ -45,7 +46,10 @@ export function PaymentRequestContainer({ initialData, totalCount, projectId }: 
                     </div>
                 </div>
 
-                <PaymentRequestActions data={initialData} />
+                <PaymentRequestActions
+                    data={initialData}
+                    onOpenForm={() => setIsFormOpen(true)}
+                />
             </div>
 
             <TabsContent value="list" className="flex-1 m-0 p-4 overflow-y-auto">
@@ -54,6 +58,8 @@ export function PaymentRequestContainer({ initialData, totalCount, projectId }: 
                     totalCount={totalCount}
                     projectId={projectId}
                     externalSearchTerm={searchTerm}
+                    isFormOpen={isFormOpen}
+                    onFormOpenChange={setIsFormOpen}
                 />
             </TabsContent>
 

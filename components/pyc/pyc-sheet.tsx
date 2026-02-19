@@ -18,10 +18,14 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
-import { createPYC, updatePYC } from '@/lib/actions/pyc'
+import {
+    Dialog,
+    DialogContent,
+} from '@/components/ui/dialog'
+import { createPYC, updatePYC, getNextPYCSequence } from '@/lib/actions/pyc'
 import { getTasksByCategory } from '@/lib/actions/tasks'
 import { getAllResources } from '@/lib/actions/resources'
-import { Plus, Trash2, Package, Calculator, Info, ChevronRight, ChevronLeft, Save, FileText, Loader2, UserPlus } from 'lucide-react'
+import { Plus, Trash2, Package, Calculator, Info, ChevronRight, ChevronLeft, ChevronDown, Save, FileText, Loader2, UserPlus, Printer } from 'lucide-react'
 import {
     Table,
     TableBody,
@@ -40,6 +44,7 @@ import { cn } from '@/lib/utils'
 interface PYCDetail {
     id?: string
     item_name: string
+    custom_item_name?: string | null
     category?: string | null
     task_description?: string | null
     material_code?: string | null
@@ -152,7 +157,8 @@ export function PYCSheet({
     })
 
     const [details, setDetails] = useState<PYCDetail[]>([])
-    const [selectedDetailIndex, setSelectedDetailIndex] = useState<number>(0)
+    const [selectedDetailIndex, setSelectedDetailIndex] = useState<number>(-1)
+    const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false)
 
     // Resource Creation Dialog state
     const [isResourceDialogOpen, setIsResourceDialogOpen] = useState(false)
@@ -184,6 +190,26 @@ export function PYCSheet({
         }
     }, [open])
 
+    // Generate Request ID logic
+    const generateRequestId = useCallback(async (projId: string) => {
+        if (!projId || projId === 'global') {
+            setHeaderData(prev => ({ ...prev, request_id: `PYC/GENERAL/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/0001` }))
+            return
+        }
+
+        try {
+            const now = new Date()
+            const year = now.getFullYear()
+            const month = now.getMonth() + 1
+            const nextSeq = await getNextPYCSequence(projId, year, month)
+            const formattedSeq = String(nextSeq).padStart(4, '0')
+            const newId = `PYC/${projId}/${year}/${String(month).padStart(2, '0')}/${formattedSeq}`
+            setHeaderData(prev => ({ ...prev, request_id: newId }))
+        } catch (error) {
+            console.error('Error generating request ID:', error)
+        }
+    }, [])
+
     useEffect(() => {
         if (pyc) {
             setHeaderData({
@@ -208,8 +234,10 @@ export function PYCSheet({
                 vat_value: d.vat_value !== undefined ? Number(d.vat_value) : DEFAULT_VAT_OPTION.value
             })) : [])
         } else {
+            // Initial ID for no project
+            const initialId = `PYC/GENERAL/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/0001`
             setHeaderData({
-                request_id: `PYC-${Date.now()}`,
+                request_id: initialId,
                 title: '',
                 request_type: DEFAULT_LOAI_PHIEU,
                 status: DEFAULT_TRANG_THAI_PHIEU,
@@ -223,8 +251,12 @@ export function PYCSheet({
                 attachments: [],
             })
             setDetails([])
+
+            if (projectId) {
+                generateRequestId(projectId)
+            }
         }
-    }, [pyc, open, projectId])
+    }, [pyc, open, projectId, generateRequestId])
 
     const handleAddDetail = () => {
         const newDetail: PYCDetail = {
@@ -244,6 +276,7 @@ export function PYCSheet({
         const newIndex = newDetails.length - 1
         setDetails(newDetails)
         setSelectedDetailIndex(newIndex)
+        setIsDetailDialogOpen(true)
 
         // If a category is defaulted, trigger task loading for that category
         if (newDetail.category) {
@@ -334,7 +367,9 @@ export function PYCSheet({
 
     const calculateTotal = () => {
         return details.reduce((sum, item) => {
-            return sum + (Number(item.quantity || 0) * Number(item.unit_price || 0))
+            const beforeTax = Number(item.quantity || 0) * Number(item.unit_price || 0)
+            const vat = 1 + (Number(item.vat_value || 0) / 100)
+            return sum + (beforeTax * vat)
         }, 0)
     }
 
@@ -372,10 +407,28 @@ export function PYCSheet({
         setCurrentStep(prev => prev + 1)
     }
 
-    const prevStep = () => setCurrentStep(prev => prev - 1)
+    const formatNumber = (val: number | string | null | undefined) => {
+        if (val === null || val === undefined || val === '') return ''
+        const num = Number(val)
+        if (isNaN(num)) return ''
+        return new Intl.NumberFormat('vi-VN').format(num)
+    }
+
+    const parseFormattedNumber = (val: string) => {
+        return val.replace(/\./g, '').replace(/,/g, '.')
+    }
+
+    const formatCurrency = (val: number | string | null | undefined) => {
+        if (val === null || val === undefined || val === '') return '0'
+        return new Intl.NumberFormat('vi-VN').format(Number(val))
+    }
+
+    const prevStep = () => {
+        setCurrentStep(prev => prev - 1)
+    }
 
     const SectionTitle = ({ icon: Icon, title }: { icon: any, title: string }) => (
-        <div className="flex items-center gap-2 text-primary font-bold text-[10px] uppercase tracking-wider mb-4 mt-6 first:mt-0 opacity-70">
+        <div className="flex items-center gap-2 text-primary font-medium text-[11px] tracking-wide mb-2.5 mt-4 first:mt-0 opacity-80">
             <Icon className="h-3.5 w-3.5" />
             {title}
         </div>
@@ -397,28 +450,28 @@ export function PYCSheet({
                 </div>
 
                 {/* Header Section */}
-                <div className="bg-primary/5 p-6 border-b border-primary/10 sticky top-0 z-10 backdrop-blur-xl shrink-0">
-                    <SheetHeader className="flex flex-row items-center gap-4 space-y-0 text-left">
-                        <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20 shadow-inner">
-                            <FileText className="h-7 w-7" />
+                <div className="bg-primary/5 px-4 py-3 border-b border-primary/10 sticky top-0 z-10 backdrop-blur-xl shrink-0">
+                    <SheetHeader className="flex flex-row items-center gap-3 space-y-0 text-left">
+                        <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20 shadow-inner">
+                            <FileText className="h-6 w-6" />
                         </div>
                         <div className="flex-1">
-                            <SheetTitle className="text-xl font-bold tracking-tight">
+                            <SheetTitle className="text-lg font-bold tracking-tight">
                                 {pyc ? 'Cập nhật Phiếu yêu cầu' : 'Lập Phiếu yêu cầu mới'}
                             </SheetTitle>
-                            <div className="flex items-center gap-3 mt-1.5">
+                            <div className="flex items-center gap-3 mt-1">
                                 <div
                                     onClick={() => setCurrentStep(1)}
                                     className={cn(
-                                        "flex items-center gap-1 cursor-pointer transition-all",
+                                        "flex items-center gap-1.5 cursor-pointer transition-all",
                                         currentStep === 1 ? "text-primary font-medium" : "text-muted-foreground hover:text-foreground"
                                     )}
                                 >
                                     <span className={cn(
-                                        "h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold shadow-sm shrink-0",
+                                        "h-4 w-4 rounded-full flex items-center justify-center text-[9px] font-medium shadow-sm shrink-0",
                                         currentStep === 1 ? "bg-primary text-primary-foreground" : "bg-muted-foreground/20 text-muted-foreground"
                                     )}>1</span>
-                                    <span className="text-xs">THÔNG TIN CHUNG</span>
+                                    <span className="text-[11px]">THÔNG TIN CHUNG</span>
                                 </div>
                                 <ChevronRight className="h-3 w-3 text-muted-foreground/20" />
                                 <div
@@ -427,15 +480,15 @@ export function PYCSheet({
                                         else alert("Vui lòng nhập tiêu đề phiếu trước khi qua Bước 2.")
                                     }}
                                     className={cn(
-                                        "flex items-center gap-1 cursor-pointer transition-all",
+                                        "flex items-center gap-1.5 cursor-pointer transition-all",
                                         currentStep === 2 ? "text-primary font-medium" : "text-muted-foreground hover:text-foreground"
                                     )}
                                 >
                                     <span className={cn(
-                                        "h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold shadow-sm shrink-0",
+                                        "h-4 w-4 rounded-full flex items-center justify-center text-[9px] font-medium shadow-sm shrink-0",
                                         currentStep === 2 ? "bg-primary text-primary-foreground" : "bg-muted-foreground/20 text-muted-foreground"
                                     )}>2</span>
-                                    <span className="text-xs">CHI TIẾT</span>
+                                    <span className="text-[11px]">CHI TIẾT PHIẾU</span>
                                 </div>
                             </div>
                         </div>
@@ -443,81 +496,85 @@ export function PYCSheet({
                 </div>
 
                 {/* Content Section */}
-                <div className="flex-1 overflow-y-auto p-8 bg-muted/5">
+                <div className="flex-1 overflow-y-auto px-4 md:px-5 py-3 pt-1.5 bg-muted/5">
                     {currentStep === 1 && (
-                        <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+                        <div className="space-y-4 animate-in slide-in-from-right-4 duration-300">
                             {/* Card 1: Thông tin cơ bản */}
-                            <div className="bg-card border border-border/50 rounded-2xl p-6 shadow-sm">
+                            <div className="bg-card border border-border/50 rounded-2xl px-5 py-4 shadow-sm">
                                 <SectionTitle icon={Info} title="Thông tin cơ bản" />
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-semibold">Mã phiếu</Label>
-                                        <Input
-                                            value={headerData.request_id}
-                                            readOnly
-                                            className="rounded-xl h-11 bg-muted/50 font-mono text-xs border-dashed"
-                                        />
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-semibold">Dự án</Label>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                                    <div className="space-y-1.5">
+                                        <Label className="text-[12px] font-medium text-slate-600">Dự án</Label>
                                         <Select
                                             value={headerData.project_id || "global"}
-                                            onValueChange={v => setHeaderData({ ...headerData, project_id: v === "global" ? "" : v })}
+                                            onValueChange={v => {
+                                                const projId = v === "global" ? "" : v
+                                                setHeaderData({ ...headerData, project_id: projId })
+                                                if (!pyc) generateRequestId(projId)
+                                            }}
                                         >
-                                            <SelectTrigger className="rounded-xl h-11 border-border/40 bg-card/40">
+                                            <SelectTrigger className="rounded-xl h-10 border-border/40 bg-card/40 text-[13px] w-full">
                                                 <SelectValue placeholder="Chọn dự án" />
                                             </SelectTrigger>
                                             <SelectContent className="rounded-xl">
-                                                <SelectItem value="global">Dùng chung (Toàn bộ)</SelectItem>
+                                                <SelectItem value="global" className="text-[13px]">Dùng chung (Toàn bộ)</SelectItem>
                                                 {projects.map(p => (
-                                                    <SelectItem key={p.project_id} value={p.project_id}>{p.project_name}</SelectItem>
+                                                    <SelectItem key={p.project_id} value={p.project_id} className="text-[13px]">{p.project_name}</SelectItem>
                                                 ))}
                                             </SelectContent>
                                         </Select>
                                     </div>
 
-                                    <div className="space-y-2 md:col-span-2">
-                                        <Label className="text-xs font-semibold">Tiêu đề phiếu <span className="text-destructive">*</span></Label>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-[12px] font-medium text-slate-600">Mã phiếu</Label>
+                                        <Input
+                                            value={headerData.request_id}
+                                            readOnly
+                                            className="rounded-xl h-10 bg-muted/50 font-mono text-[13px] border-dashed text-primary/70"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-1.5 md:col-span-2">
+                                        <Label className="text-[12px] font-medium text-slate-600">Tiêu đề phiếu <span className="text-destructive font-normal">*</span></Label>
                                         <Input
                                             value={headerData.title}
                                             onChange={e => setHeaderData({ ...headerData, title: e.target.value })}
                                             placeholder="VD: Yêu cầu vật tư thi công tầng 5..."
-                                            className="rounded-xl h-11 border-border/40 bg-card/40"
+                                            className="rounded-xl h-10 border-border/40 bg-card/40 text-[13px]"
                                             required
                                         />
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-semibold">Loại yêu cầu</Label>
-                                        <Select value={headerData.request_type!} onValueChange={v => setHeaderData({ ...headerData, request_type: v as any })}>
-                                            <SelectTrigger className="rounded-xl h-11 border-border/40 bg-card/40">
+                                    <div className="space-y-1.5">
+                                        <Label className="text-[12px] font-medium text-slate-600">Loại yêu cầu</Label>
+                                        <Select value={headerData.request_type as any} onValueChange={v => setHeaderData({ ...headerData, request_type: v as any })}>
+                                            <SelectTrigger className="rounded-xl h-10 border-border/40 bg-card/40 text-[13px] w-full">
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent className="rounded-xl">
                                                 {LOAI_PHIEU.map(t => (
-                                                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                                                    <SelectItem key={t} value={t} className="text-[13px]">{t}</SelectItem>
                                                 ))}
                                             </SelectContent>
                                         </Select>
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-semibold">Độ ưu tiên</Label>
-                                        <Select value={headerData.priority!} onValueChange={v => setHeaderData({ ...headerData, priority: v as any })}>
-                                            <SelectTrigger className="rounded-xl h-11 border-border/40 bg-card/40">
+                                    <div className="space-y-1.5">
+                                        <Label className="text-[12px] font-medium text-slate-600">Độ ưu tiên</Label>
+                                        <Select value={headerData.priority as any} onValueChange={v => setHeaderData({ ...headerData, priority: v as any })}>
+                                            <SelectTrigger className="rounded-xl h-10 border-border/40 bg-card/40 text-[13px] w-full">
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent className="rounded-xl">
                                                 {MUC_DO_UU_TIEN.map(p => (
-                                                    <SelectItem key={p} value={p}>{p}</SelectItem>
+                                                    <SelectItem key={p} value={p} className="text-[13px]">{p}</SelectItem>
                                                 ))}
                                             </SelectContent>
                                         </Select>
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-semibold">VAT mặc định</Label>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-[12px] font-medium text-slate-600">VAT mặc định</Label>
                                         <Select
                                             value={headerData.vat_display || DEFAULT_VAT_OPTION.display}
                                             onValueChange={v => {
@@ -531,65 +588,59 @@ export function PYCSheet({
                                                 }
                                             }}
                                         >
-                                            <SelectTrigger className="rounded-xl h-11 border-border/40 bg-card/40">
+                                            <SelectTrigger className="rounded-xl h-10 border-border/40 bg-card/40 text-[13px] w-full">
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent className="rounded-xl">
                                                 {VAT_OPTIONS.map(opt => (
-                                                    <SelectItem key={opt.display} value={opt.display}>{opt.display}</SelectItem>
+                                                    <SelectItem key={opt.display} value={opt.display} className="text-[13px]">{opt.display}</SelectItem>
                                                 ))}
                                             </SelectContent>
                                         </Select>
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-semibold">Hạng mục công việc chính</Label>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-[12px] font-medium text-slate-600">Hạng mục công việc chính</Label>
                                         <Select
                                             value={headerData.task_category}
                                             onValueChange={v => setHeaderData({ ...headerData, task_category: v })}
                                         >
-                                            <SelectTrigger className="rounded-xl h-11 border-border/40 bg-card/40">
+                                            <SelectTrigger className="rounded-xl h-10 border-border/40 bg-card/40 text-[13px] w-full">
                                                 <SelectValue placeholder="Chọn hạng mục chính..." />
                                             </SelectTrigger>
                                             <SelectContent className="rounded-xl">
                                                 {TASK_CATEGORIES.map(cat => (
-                                                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                                    <SelectItem key={cat} value={cat} className="text-[13px]">{cat}</SelectItem>
                                                 ))}
                                             </SelectContent>
                                         </Select>
                                     </div>
 
-                                    <div className="space-y-2 md:col-span-2">
-                                        <Label className="text-xs font-semibold">Mục đích sử dụng</Label>
+                                    <div className="space-y-1.5 md:col-span-2">
+                                        <Label className="text-[12px] font-medium text-slate-600">Mục đích sử dụng</Label>
                                         <Input
                                             value={headerData.muc_dich_sd}
                                             onChange={e => setHeaderData({ ...headerData, muc_dich_sd: e.target.value })}
                                             placeholder="VD: Phục vụ thi công kết cấu hầm..."
-                                            className="rounded-xl h-11 border-border/40 bg-card/40"
+                                            className="rounded-xl h-10 border-border/40 bg-card/40 text-[13px]"
                                         />
                                     </div>
-                                </div>
-                            </div>
 
-                            {/* Card 2: Ghi chú */}
-                            <div className="bg-card border border-border/50 rounded-2xl p-6 shadow-sm">
-                                <SectionTitle icon={Calculator} title="Thiết lập tài chính & Ghi chú" />
-                                <div className="space-y-5">
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-semibold">Ghi chú phiếu</Label>
+                                    <div className="space-y-1.5 md:col-span-2">
+                                        <Label className="text-[12px] font-medium text-slate-600">Ghi chú & Lưu ý</Label>
                                         <Textarea
                                             value={headerData.notes || ''}
                                             onChange={e => setHeaderData({ ...headerData, notes: e.target.value })}
                                             placeholder="Lý do yêu cầu chi tiết hoặc các lưu ý đặc biệt..."
-                                            className="min-h-[80px] rounded-xl border-border/40 bg-card/40 resize-none"
+                                            className="min-h-[80px] rounded-xl border-border/40 bg-card/40 resize-none text-[13px]"
                                         />
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Card 3: Tài liệu đính kèm */}
-                            <div className="bg-card border border-border/50 rounded-2xl p-6 shadow-sm md:col-span-2">
-                                <div className="flex items-center justify-between mb-4">
+                            {/* Card 2: Tài liệu đính kèm */}
+                            <div className="bg-card border border-border/50 rounded-2xl p-5 shadow-sm md:col-span-2">
+                                <div className="flex items-center justify-between mb-1">
                                     <SectionTitle icon={FileText} title="Tài liệu đính kèm" />
                                     <Button
                                         type="button"
@@ -599,18 +650,21 @@ export function PYCSheet({
                                             ...headerData,
                                             attachments: [...(headerData.attachments || []), { name: '', description: '', url: '' }]
                                         })}
-                                        className="h-8 rounded-lg border-primary/20 bg-primary/5 text-primary hover:bg-primary/10"
+                                        className="h-8 rounded-lg border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 text-[11px]"
                                     >
-                                        <Plus className="h-3.5 w-3.5 mr-1.5" />
+                                        <Plus className="h-3 w-3 mr-1.5" />
                                         Thêm tài liệu
                                     </Button>
+                                </div>
+                                <div className="text-[11px] text-muted-foreground italic mb-4 opacity-70">
+                                    (Đính kèm các tài liệu làm rõ yêu cầu mua sắm này như phiếu đề xuất.v.v.)
                                 </div>
 
                                 <div className="space-y-3">
                                     {(headerData.attachments || []).map((att, idx) => (
-                                        <div key={idx} className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 rounded-xl border border-border/40 bg-card/20 relative group">
-                                            <div className="space-y-1.5">
-                                                <Label className="text-[11px] font-medium text-muted-foreground">Tên tài liệu</Label>
+                                        <div key={idx} className="grid grid-cols-1 md:grid-cols-3 gap-3 p-3 rounded-xl border border-border/40 bg-card/20 relative group">
+                                            <div className="space-y-1">
+                                                <Label className="text-[10px] font-medium text-muted-foreground uppercase opacity-70">Tên tài liệu</Label>
                                                 <Input
                                                     value={att.name}
                                                     onChange={e => {
@@ -619,11 +673,11 @@ export function PYCSheet({
                                                         setHeaderData({ ...headerData, attachments: newAtts })
                                                     }}
                                                     placeholder="VD: Bản vẽ kỹ thuật..."
-                                                    className="h-9 rounded-lg border-border/40 bg-background/50 text-xs"
+                                                    className="h-8 rounded-lg border-border/40 bg-background/50 text-[12px]"
                                                 />
                                             </div>
-                                            <div className="space-y-1.5">
-                                                <Label className="text-[11px] font-medium text-muted-foreground">Mô tả</Label>
+                                            <div className="space-y-1">
+                                                <Label className="text-[10px] font-medium text-muted-foreground uppercase opacity-70">Mô tả</Label>
                                                 <Input
                                                     value={att.description}
                                                     onChange={e => {
@@ -631,12 +685,12 @@ export function PYCSheet({
                                                         newAtts[idx].description = e.target.value
                                                         setHeaderData({ ...headerData, attachments: newAtts })
                                                     }}
-                                                    placeholder="Mô tả nội dung tài liệu..."
-                                                    className="h-9 rounded-lg border-border/40 bg-background/50 text-xs"
+                                                    placeholder="Mô tả nội dung..."
+                                                    className="h-8 rounded-lg border-border/40 bg-background/50 text-[12px]"
                                                 />
                                             </div>
-                                            <div className="space-y-1.5 relative">
-                                                <Label className="text-[11px] font-medium text-muted-foreground">Link đính kèm</Label>
+                                            <div className="space-y-1 relative pr-8">
+                                                <Label className="text-[10px] font-medium text-muted-foreground uppercase opacity-70">Link đính kèm</Label>
                                                 <Input
                                                     value={att.url}
                                                     onChange={e => {
@@ -645,7 +699,7 @@ export function PYCSheet({
                                                         setHeaderData({ ...headerData, attachments: newAtts })
                                                     }}
                                                     placeholder="https://..."
-                                                    className="h-9 rounded-lg border-border/40 bg-background/50 text-xs pr-8"
+                                                    className="h-8 rounded-lg border-border/40 bg-background/50 text-[12px]"
                                                 />
                                                 <Button
                                                     type="button"
@@ -655,15 +709,15 @@ export function PYCSheet({
                                                         const newAtts = (headerData.attachments || []).filter((_, i) => i !== idx)
                                                         setHeaderData({ ...headerData, attachments: newAtts })
                                                     }}
-                                                    className="absolute right-0 bottom-0 h-9 w-9 text-muted-foreground hover:text-destructive transition-colors"
+                                                    className="absolute right-0 bottom-0 h-8 w-8 text-muted-foreground hover:text-destructive opacity-40 hover:opacity-100 transition-opacity"
                                                 >
-                                                    <Trash2 className="h-4 w-4" />
+                                                    <Trash2 className="h-3.5 w-3.5" />
                                                 </Button>
                                             </div>
                                         </div>
                                     ))}
                                     {(headerData.attachments || []).length === 0 && (
-                                        <div className="text-center py-6 border border-dashed border-border/60 rounded-xl bg-card/10 text-muted-foreground text-xs italic">
+                                        <div className="text-center py-4 border border-dashed border-border/60 rounded-xl bg-card/10 text-muted-foreground text-[11px] italic">
                                             Chưa có tài liệu đính kèm. Nhấp vào "Thêm tài liệu" để bắt đầu.
                                         </div>
                                     )}
@@ -673,29 +727,56 @@ export function PYCSheet({
                     )}
 
                     {currentStep === 2 && (
-                        <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-                            <div className="bg-card border border-border/50 rounded-2xl p-6 shadow-sm overflow-hidden flex flex-col">
-                                <div className="flex items-center justify-between mb-6 shrink-0">
-                                    <SectionTitle icon={Package} title="Chi tiết phiếu" />
-                                    <Button type="button" variant="outline" size="sm" onClick={handleAddDetail} className="h-9 rounded-xl border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 px-4">
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        Thêm dòng
+                        <div className="space-y-5 animate-in slide-in-from-right-4 duration-300">
+                            <div className="bg-card border border-border/50 rounded-2xl p-5 shadow-sm overflow-hidden flex flex-col">
+                                <div className="flex items-center justify-between mb-4 shrink-0">
+                                    <SectionTitle icon={Package} title="Chi tiết danh mục yêu cầu" />
+                                    <Button type="button" variant="outline" size="sm" onClick={handleAddDetail} className="h-8 rounded-lg border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 px-3 text-[11px]">
+                                        <Plus className="h-3.5 w-3.5 mr-1.5" />
+                                        Thêm dòng mới
                                     </Button>
                                 </div>
 
-                                <div className="space-y-6">
-                                    <div className="rounded-xl border border-border/40 bg-card/30 overflow-hidden shadow-sm">
+                                <div className="space-y-5">
+                                    <div className="border border-border/40 bg-card overflow-hidden shadow-sm">
                                         <Table>
-                                            <TableHeader className="bg-muted/30">
-                                                <TableRow className="hover:bg-transparent border-border/30">
-                                                    <TableHead className="w-[50px] text-center text-[12px] font-semibold text-slate-700">TT</TableHead>
-                                                    <TableHead className="min-w-[250px] text-[12px] font-semibold text-slate-700">Tên vật tư & Quy cách</TableHead>
-                                                    <TableHead className="w-[80px] text-center text-[12px] font-semibold text-slate-700">ĐVT</TableHead>
-                                                    <TableHead className="w-[100px] text-right text-[12px] font-semibold text-slate-700">Số lượng</TableHead>
-                                                    <TableHead className="w-[120px] text-right text-[12px] font-semibold text-slate-700">Đơn giá</TableHead>
-                                                    <TableHead className="w-[100px] text-center text-[12px] font-semibold text-slate-700">VAT</TableHead>
-                                                    <TableHead className="w-[140px] text-right text-[12px] font-semibold text-slate-700">Thành tiền</TableHead>
-                                                    <TableHead className="w-[50px]"></TableHead>
+                                            <TableHeader className="bg-[#1a472a]">
+                                                <TableRow className="hover:bg-transparent border-none">
+                                                    <TableHead className="w-[50px] text-center text-[12px] font-semibold text-white/90 py-3 uppercase tracking-tight">STT</TableHead>
+                                                    <TableHead className="min-w-[200px] text-[12px] font-semibold text-white/90 py-3 flex items-center gap-1.5">
+                                                        Tên vật tư quy cách
+                                                        <ChevronDown className="h-3 w-3 opacity-50" />
+                                                    </TableHead>
+                                                    <TableHead className="w-[80px] text-center text-[12px] font-semibold text-white/90 py-3 uppercase tracking-tight">
+                                                        <div className="flex items-center justify-center gap-1">
+                                                            ĐVT
+                                                            <ChevronDown className="h-3 w-3 opacity-30" />
+                                                        </div>
+                                                    </TableHead>
+                                                    <TableHead className="w-[100px] text-right text-[12px] font-semibold text-white/90 py-3 uppercase tracking-tight">
+                                                        <div className="flex items-center justify-end gap-1">
+                                                            Số lượng
+                                                            <ChevronDown className="h-3 w-3 opacity-30" />
+                                                        </div>
+                                                    </TableHead>
+                                                    <TableHead className="w-[140px] text-right text-[12px] font-semibold text-white/90 py-3 uppercase tracking-tight">
+                                                        <div className="flex items-center justify-end gap-1">
+                                                            Đơn giá trước thuế
+                                                            <ChevronDown className="h-3 w-3 opacity-30" />
+                                                        </div>
+                                                    </TableHead>
+                                                    <TableHead className="w-[90px] text-center text-[12px] font-semibold text-white/90 py-3 flex items-center justify-center gap-1.5 uppercase tracking-tight">
+                                                        <Info className="h-3 w-3 opacity-50" />
+                                                        VAT
+                                                        <ChevronDown className="h-3 w-3 opacity-30" />
+                                                    </TableHead>
+                                                    <TableHead className="w-[160px] text-right text-[12px] font-semibold text-white/90 py-3 uppercase tracking-tight">
+                                                        <div className="flex items-center justify-end gap-1">
+                                                            Thành tiền sau thuế
+                                                            <ChevronDown className="h-3 w-3 opacity-30" />
+                                                        </div>
+                                                    </TableHead>
+                                                    <TableHead className="w-[40px]"></TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
@@ -703,102 +784,65 @@ export function PYCSheet({
                                                     <TableRow
                                                         key={index}
                                                         className={cn(
-                                                            "group transition-all duration-200 border-border/20",
-                                                            selectedDetailIndex === index ? "bg-primary/[0.06] ring-2 ring-inset ring-primary/30" : "hover:bg-primary/[0.01]"
+                                                            "group transition-all duration-200 border-border/20 cursor-pointer",
+                                                            selectedDetailIndex === index ? "bg-primary/[0.04] border-l-2 border-l-primary" : "hover:bg-primary/[0.01]"
                                                         )}
-                                                        onClick={() => setSelectedDetailIndex(index)}
+                                                        onClick={() => {
+                                                            setSelectedDetailIndex(index)
+                                                            setIsDetailDialogOpen(true)
+                                                        }}
                                                     >
-                                                        <TableCell className="p-3 text-center align-middle text-[11px] text-muted-foreground/50 font-semibold">
-                                                            {String(index + 1).padStart(2, '0')}
+                                                        <TableCell className="p-2.5 text-center align-middle text-[12px] text-slate-500 border-r border-border/30">
+                                                            {index + 1}
                                                         </TableCell>
 
-                                                        <TableCell className="px-4 py-3 align-middle">
-                                                            <div className="space-y-2 min-w-[220px]">
-                                                                <ResourceCombobox
-                                                                    value={detail.item_name}
-                                                                    onAddNew={() => handleOpenResourceDialog(index)}
-                                                                    onChange={(val: string, unit: string | null, price: number | null, code: string) => {
-                                                                        const newDetails = [...details]
-                                                                        newDetails[index] = {
-                                                                            ...newDetails[index],
-                                                                            item_name: val,
-                                                                            unit: unit || newDetails[index].unit,
-                                                                            unit_price: price || newDetails[index].unit_price,
-                                                                            material_code: code || newDetails[index].material_code
-                                                                        }
-                                                                        setDetails(newDetails)
-                                                                    }}
-                                                                />
-                                                                <Input
-                                                                    placeholder="Mô tả quy cách, thông số..."
-                                                                    value={detail.notes || ''}
-                                                                    onChange={e => handleDetailChange(index, 'notes', e.target.value)}
-                                                                    className="h-9 rounded-lg border-border/10 bg-transparent text-[12px] placeholder:text-muted-foreground/30 focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40 transition-all duration-200"
-                                                                />
-                                                            </div>
-                                                        </TableCell>
-
-                                                        <TableCell className="p-3 align-middle text-center">
-                                                            <Input
-                                                                value={detail.unit || ''}
-                                                                onChange={e => handleDetailChange(index, 'unit', e.target.value)}
-                                                                className="h-10 w-16 mx-auto rounded-lg border-border/10 bg-muted/5 text-center text-[12px] font-medium focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40 transition-all duration-200"
-                                                            />
-                                                        </TableCell>
-
-                                                        <TableCell className="p-3 align-middle">
-                                                            <Input
-                                                                type="number"
-                                                                value={detail.quantity}
-                                                                onChange={e => handleDetailChange(index, 'quantity', e.target.value)}
-                                                                className="h-10 rounded-lg border-primary/10 bg-card/50 text-right text-[13px] font-semibold text-primary px-3 shadow-sm focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:border-primary/40 transition-all duration-200"
-                                                            />
-                                                        </TableCell>
-
-                                                        <TableCell className="p-3 align-middle">
-                                                            <Input
-                                                                type="number"
-                                                                value={detail.unit_price}
-                                                                onChange={e => handleDetailChange(index, 'unit_price', e.target.value)}
-                                                                className="h-10 rounded-lg border-border/20 bg-muted/5 text-right text-[13px] font-medium px-3 focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40 transition-all duration-200"
-                                                            />
-                                                        </TableCell>
-
-                                                        <TableCell className="p-3 align-middle">
-                                                            <Select
-                                                                value={detail.vat_display || DEFAULT_VAT_OPTION.display}
-                                                                onValueChange={v => {
-                                                                    const option = VAT_OPTIONS.find(o => o.display === v)
-                                                                    const newDetails = [...details]
-                                                                    newDetails[index] = {
-                                                                        ...newDetails[index],
-                                                                        vat_display: v,
-                                                                        vat_value: option?.value ?? 0
-                                                                    }
-                                                                    setDetails(newDetails)
-                                                                }}
-                                                            >
-                                                                <SelectTrigger className="h-10 rounded-lg border-border/10 bg-muted/5 text-[12px] font-medium shadow-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all duration-200">
-                                                                    <SelectValue />
-                                                                </SelectTrigger>
-                                                                <SelectContent className="rounded-xl border-border/40">
-                                                                    {VAT_OPTIONS.map(opt => (
-                                                                        <SelectItem key={opt.display} value={opt.display} className="text-[12px]">{opt.display}</SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </TableCell>
-
-                                                        <TableCell className="p-3 text-right align-middle">
-                                                            <div className="flex flex-col items-end pr-2">
-                                                                <span className="text-[14px] font-bold text-primary tracking-tight">
-                                                                    {new Intl.NumberFormat('vi-VN').format(Number(detail.quantity || 0) * Number(detail.unit_price || 0))}
+                                                        <TableCell className="p-2.5 align-middle border-r border-border/30">
+                                                            <div className="flex flex-col gap-0.5">
+                                                                <span className="text-[13px] font-medium text-slate-800 leading-tight">
+                                                                    {detail.custom_item_name || detail.item_name}
                                                                 </span>
-                                                                <span className="text-[10px] font-semibold text-muted-foreground/30 leading-none">VNĐ</span>
+                                                                {detail.notes && (
+                                                                    <span className="text-[11px] text-slate-400 italic font-light truncate max-w-[250px]">
+                                                                        {detail.notes}
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                         </TableCell>
 
-                                                        <TableCell className="p-3 text-center align-middle">
+                                                        <TableCell className="p-2.5 align-middle text-center border-r border-border/30 text-[13px] text-slate-600">
+                                                            {detail.unit || '---'}
+                                                        </TableCell>
+
+                                                        <TableCell className="p-2.5 align-middle text-right border-r border-border/30 font-medium text-[13px] text-slate-700 tabular-nums">
+                                                            {formatNumber(detail.quantity)}
+                                                        </TableCell>
+
+                                                        <TableCell className="p-2.5 align-middle text-right border-r border-border/30 text-[13px] text-slate-600 tabular-nums">
+                                                            {formatNumber(detail.unit_price)}
+                                                        </TableCell>
+
+                                                        <TableCell className="p-2.5 align-middle text-center border-r border-border/30">
+                                                            <div className={cn(
+                                                                "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold tracking-tight",
+                                                                Number(detail.vat_value) === 10 ? "bg-emerald-100 text-emerald-700" :
+                                                                    Number(detail.vat_value) === 5 ? "bg-amber-100 text-amber-700" :
+                                                                        "bg-slate-100 text-slate-600"
+                                                            )}>
+                                                                {detail.vat_display || '0%'}
+                                                            </div>
+                                                        </TableCell>
+
+                                                        <TableCell className="p-2.5 text-right align-middle border-r border-border/30">
+                                                            <span className="text-[13px] font-bold text-slate-900 tabular-nums">
+                                                                {formatCurrency(
+                                                                    Number(detail.quantity || 0) *
+                                                                    Number(detail.unit_price || 0) *
+                                                                    (1 + (Number(detail.vat_value || 0) / 100))
+                                                                )}
+                                                            </span>
+                                                        </TableCell>
+
+                                                        <TableCell className="p-1 text-center align-middle">
                                                             <Button
                                                                 variant="ghost"
                                                                 size="icon"
@@ -806,9 +850,9 @@ export function PYCSheet({
                                                                     e.stopPropagation()
                                                                     handleRemoveDetail(index)
                                                                 }}
-                                                                className="h-8 w-8 text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-all duration-200 opacity-0 group-hover:opacity-100"
+                                                                className="h-8 w-8 text-muted-foreground/30 hover:text-destructive hover:bg-destructive/5 opacity-0 group-hover:opacity-100 transition-all"
                                                             >
-                                                                <Trash2 className="h-4 w-4" />
+                                                                <Trash2 className="h-3.5 w-3.5" />
                                                             </Button>
                                                         </TableCell>
                                                     </TableRow>
@@ -816,145 +860,70 @@ export function PYCSheet({
                                             </TableBody>
                                         </Table>
                                     </div>
-
-                                    {/* External Metadata Selection Form */}
-                                    {details.length > 0 && selectedDetailIndex !== -1 && details[selectedDetailIndex] && (
-                                        <div className="relative animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                            <div className="absolute -top-3 left-6 px-2 bg-background z-10">
-                                                <span className="text-[10px] uppercase font-bold text-primary/60 tracking-widest flex items-center gap-2">
-                                                    <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                                                    Thông tin chi tiết dòng #{selectedDetailIndex + 1}
-                                                </span>
-                                            </div>
-                                            <div className="rounded-2xl border border-primary/30 bg-primary/[0.03] p-6 pt-8 shadow-[0_12px_40px_rgb(0,0,0,0.06)] ring-1 ring-primary/10">
-                                                <div className="space-y-6">
-                                                    {/* Row 1: Resource Name & Purpose */}
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                                        <div className="space-y-2">
-                                                            <Label className="text-[12px] font-semibold text-slate-700 flex items-center gap-2">
-                                                                <div className="w-1.5 h-1.5 rounded-full bg-primary/40" />
-                                                                Tên vật tư chi tiết & Quy cách
-                                                            </Label>
-                                                            <Input
-                                                                value={details[selectedDetailIndex].item_name || ''}
-                                                                onChange={e => handleDetailChange(selectedDetailIndex, 'item_name', e.target.value)}
-                                                                placeholder="Chỉnh sửa tên vật tư hoặc quy cách..."
-                                                                className="h-11 rounded-xl border-border/40 bg-card text-[13px] shadow-sm focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40 transition-all duration-200"
-                                                            />
-                                                        </div>
-
-                                                        <div className="space-y-2">
-                                                            <Label className="text-[12px] font-semibold text-slate-700 flex items-center gap-2">
-                                                                <div className="w-1.5 h-1.5 rounded-full bg-primary/40" />
-                                                                Mục đích sử dụng chi tiết
-                                                            </Label>
-                                                            <Input
-                                                                value={details[selectedDetailIndex].muc_dich_sd || ''}
-                                                                onChange={e => handleDetailChange(selectedDetailIndex, 'muc_dich_sd', e.target.value)}
-                                                                placeholder="Nhập giải trình chi tiết..."
-                                                                className="h-11 rounded-xl border-border/40 bg-card text-[13px] shadow-sm focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/40 transition-all duration-200"
-                                                            />
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Row 2: Category & Task */}
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                                        <div className="space-y-2">
-                                                            <Label className="text-[12px] font-semibold text-slate-700 flex items-center gap-2">
-                                                                <div className="w-1.5 h-1.5 rounded-full bg-primary/40" />
-                                                                Hạng mục công trình
-                                                            </Label>
-                                                            <Select
-                                                                value={details[selectedDetailIndex].category || ''}
-                                                                onValueChange={v => handleCategoryChange(selectedDetailIndex, v)}
-                                                            >
-                                                                <SelectTrigger className="h-11 rounded-xl border-border/40 bg-card text-[13px] shadow-sm hover:border-primary/40 focus:ring-2 focus:ring-primary/20 transition-all duration-200">
-                                                                    <SelectValue placeholder="Chọn hạng mục phân loại..." />
-                                                                </SelectTrigger>
-                                                                <SelectContent className="rounded-xl border-border/40">
-                                                                    {TASK_CATEGORIES.map(cat => (
-                                                                        <SelectItem key={cat} value={cat} className="text-[13px] py-2.5">{cat}</SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </div>
-
-                                                        <div className="space-y-2">
-                                                            <Label className="text-[12px] font-semibold text-slate-700 flex items-center gap-2">
-                                                                <div className="w-1.5 h-1.5 rounded-full bg-primary/40" />
-                                                                Tên công việc cụ thể
-                                                            </Label>
-                                                            <Select
-                                                                value={details[selectedDetailIndex].task_description || ''}
-                                                                onValueChange={v => handleDetailChange(selectedDetailIndex, 'task_description', v)}
-                                                                disabled={!details[selectedDetailIndex].category || loadingTasks[selectedDetailIndex]}
-                                                            >
-                                                                <SelectTrigger className="h-11 rounded-xl border-border/40 bg-card text-[13px] shadow-sm hover:border-primary/40 focus:ring-2 focus:ring-primary/20 transition-all duration-200">
-                                                                    <SelectValue placeholder={!details[selectedDetailIndex].category ? "Vui lòng chọn hạng mục trước..." : "Chọn loại công việc..."} />
-                                                                </SelectTrigger>
-                                                                <SelectContent className="rounded-xl border-border/40">
-                                                                    {(details[selectedDetailIndex].category ? tasksByCategory[details[selectedDetailIndex].category!] || [] : []).map(task => (
-                                                                        <SelectItem key={task.task_id} value={task.task_name} className="text-[13px] py-2.5">{task.task_name}</SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         </div>
                     )}
                 </div>
 
-                {/* Footer Actions Section */}
-                <div className="p-6 border-t bg-background sticky bottom-0 z-10 flex items-center justify-between shadow-[0_-10px_40px_rgba(0,0,0,0.03)] shrink-0">
+                {/* Footer Section */}
+                <div className="px-5 py-4 border-t bg-background sticky bottom-0 z-10 flex items-center justify-between shadow-[0_-10px_40px_rgba(0,0,0,0.03)] shrink-0">
                     <Button
                         variant="ghost"
                         onClick={currentStep === 1 ? () => onOpenChange(false) : prevStep}
                         disabled={isLoading}
-                        className="rounded-xl px-6 h-12 font-medium hover:bg-muted"
+                        className="rounded-xl px-5 h-10 font-medium hover:bg-muted text-[13px]"
                     >
                         {currentStep === 1 ? 'Thoát' : (
                             <>
-                                <ChevronLeft className="mr-2 h-4 w-4" />
-                                Quay lại trang trước
+                                <ChevronLeft className="mr-1.5 h-4 w-4" />
+                                Quay lại
                             </>
                         )}
                     </Button>
 
-                    <div className="flex flex-col items-end gap-2">
+                    <div className="flex items-center gap-6">
                         {currentStep === 2 && (
-                            <div className="flex items-center gap-2 text-muted-foreground/80 px-4">
-                                <span className="text-[11px] font-medium">Tổng tiền dự kiến (tạm tính):</span>
-                                <span className="text-sm font-bold text-primary">
+                            <div className="flex items-center gap-2 text-muted-foreground/60">
+                                <span className="text-[11px] font-medium uppercase tracking-wider">Tổng cộng:</span>
+                                <span className="text-lg font-bold text-primary tabular-nums">
                                     {new Intl.NumberFormat('vi-VN').format(calculateTotal())}
                                 </span>
-                                <span className="text-[10px] font-medium">VNĐ</span>
+                                <span className="text-[10px] font-bold opacity-40">VNĐ</span>
                             </div>
                         )}
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                            {pyc && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => {
+                                        window.open(`/pyc-print/${pyc.request_id}`, '_blank')
+                                    }}
+                                    className="rounded-xl px-5 h-10 font-medium border-primary/20 text-primary hover:bg-primary/5 mr-2"
+                                >
+                                    <Printer className="mr-2 h-4 w-4" />
+                                    In phiếu
+                                </Button>
+                            )}
                             {currentStep === 1 ? (
                                 <Button
                                     onClick={nextStep}
-                                    className="rounded-xl px-8 h-12 font-bold shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90 transition-all active:scale-95 flex items-center gap-2"
+                                    className="rounded-xl px-6 h-10 font-bold shadow-lg shadow-primary/20 bg-primary hover:bg-primary/91 transition-all active:scale-95 flex items-center gap-2 text-[13px]"
                                 >
-                                    Tiếp tục: Nhập hạng mục
+                                    Tiếp tục
                                     <ChevronRight className="h-4 w-4" />
                                 </Button>
                             ) : (
                                 <Button
                                     onClick={handleSubmit}
                                     disabled={isLoading}
-                                    className="rounded-xl px-10 h-12 font-bold shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90 transition-all active:scale-95 flex items-center gap-2"
+                                    className="rounded-xl px-8 h-10 font-bold shadow-lg shadow-primary/20 bg-primary hover:bg-primary/91 transition-all active:scale-95 flex items-center gap-2 text-[13px]"
                                 >
-                                    {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : (
+                                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
                                         <>
-                                            <Save className="mr-2 h-4 w-4" />
-                                            {pyc ? 'Cập nhật thay đổi' : 'Gửi yêu cầu phê duyệt'}
+                                            <Save className="mr-1.5 h-4 w-4" />
+                                            {pyc ? 'Cập nhật' : 'Gửi yêu cầu'}
                                         </>
                                     )}
                                 </Button>
@@ -963,6 +932,241 @@ export function PYCSheet({
                     </div>
                 </div>
             </SheetContent>
+
+            {/* Dialogs outside SheetContent for better isolation */}
+            <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
+                <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden rounded-3xl border-none shadow-2xl">
+                    <div className="bg-primary/5 p-6 border-b border-primary/10">
+                        <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
+                                <Package className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold tracking-tight text-foreground">Chi tiết hạng mục yêu cầu</h3>
+                                <p className="text-[12px] text-muted-foreground">Nhập thông tin chi tiết cho vật tư/dịch vụ</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+                        {selectedDetailIndex !== -1 && details[selectedDetailIndex] && (
+                            <div className="grid gap-6">
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <Label className="text-[12px] font-semibold text-slate-700">Tên vật tư & Quy cách <span className="text-destructive">*</span></Label>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-7 text-[11px] text-primary hover:text-primary hover:bg-primary/10 rounded-lg gap-1.5 px-2"
+                                            onClick={() => handleOpenResourceDialog(selectedDetailIndex)}
+                                        >
+                                            <Plus className="h-3.5 w-3.5" />
+                                            Thêm tài nguyên mới
+                                        </Button>
+                                    </div>
+                                    <ResourceCombobox
+                                        value={details[selectedDetailIndex].item_name}
+                                        onAddNew={() => handleOpenResourceDialog(selectedDetailIndex)}
+                                        onChange={(val: string, unit: string | null, price: number | null, code: string) => {
+                                            const newDetails = [...details]
+                                            newDetails[selectedDetailIndex] = {
+                                                ...newDetails[selectedDetailIndex],
+                                                item_name: val,
+                                                custom_item_name: val, // Default custom name to original
+                                                unit: unit || newDetails[selectedDetailIndex].unit,
+                                                unit_price: price || newDetails[selectedDetailIndex].unit_price,
+                                                material_code: code || newDetails[selectedDetailIndex].material_code
+                                            }
+                                            setDetails(newDetails)
+                                        }}
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label className="text-[12px] font-semibold text-slate-700">Tên vật tư tùy chỉnh (Hiển thị trên phiếu)</Label>
+                                    <Input
+                                        value={details[selectedDetailIndex].custom_item_name || ''}
+                                        onChange={e => handleDetailChange(selectedDetailIndex, 'custom_item_name', e.target.value)}
+                                        placeholder="Để trống nếu muốn giữ nguyên tên gốc..."
+                                        className="h-10 rounded-xl border-border/40 bg-muted/5 text-[13px]"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-5">
+                                    <div className="space-y-2">
+                                        <Label className="text-[12px] font-semibold text-slate-700">Đơn vị tính</Label>
+                                        <Input
+                                            value={details[selectedDetailIndex].unit || ''}
+                                            onChange={e => handleDetailChange(selectedDetailIndex, 'unit', e.target.value)}
+                                            placeholder="Bộ, Cái, m2..."
+                                            className="h-10 rounded-xl border-border/40 bg-muted/5 text-[13px]"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-[12px] font-semibold text-slate-700">Số lượng</Label>
+                                        <Input
+                                            type="number"
+                                            value={details[selectedDetailIndex].quantity}
+                                            onChange={e => handleDetailChange(selectedDetailIndex, 'quantity', e.target.value)}
+                                            className="h-10 rounded-xl border-primary/20 bg-primary/[0.02] text-right font-bold text-primary text-[14px]"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-5">
+                                    <div className="space-y-2">
+                                        <Label className="text-[12px] font-semibold text-slate-700">Đơn giá trước thuế (VAT {details[selectedDetailIndex].vat_value || 0}%)</Label>
+                                        <div className="relative">
+                                            <Input
+                                                value={formatNumber(details[selectedDetailIndex].unit_price)}
+                                                onChange={e => {
+                                                    const rawValue = parseFormattedNumber(e.target.value)
+                                                    if (!isNaN(Number(rawValue)) || rawValue === '') {
+                                                        handleDetailChange(selectedDetailIndex, 'unit_price', rawValue)
+                                                    }
+                                                }}
+                                                className="h-10 rounded-xl border-border/40 bg-muted/5 text-right text-[13px] pr-12 font-medium"
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground font-bold">VNĐ</span>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-[12px] font-semibold text-slate-700">Đơn giá sau thuế</Label>
+                                        <div className="relative">
+                                            <Input
+                                                value={formatNumber(
+                                                    Number(details[selectedDetailIndex].unit_price || 0) * (1 + (Number(details[selectedDetailIndex].vat_value || 0) / 100))
+                                                )}
+                                                onChange={e => {
+                                                    const rawValue = parseFormattedNumber(e.target.value)
+                                                    if (!isNaN(Number(rawValue)) || rawValue === '') {
+                                                        const vat = Number(details[selectedDetailIndex].vat_value || 0)
+                                                        const beforeTax = Math.round(Number(rawValue) / (1 + (vat / 100)))
+                                                        handleDetailChange(selectedDetailIndex, 'unit_price', beforeTax)
+                                                    }
+                                                }}
+                                                className="h-10 rounded-xl border-primary/20 bg-primary/[0.02] text-right text-[13px] pr-12 font-bold text-primary"
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-primary/60 font-bold">VNĐ</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-5 items-end">
+                                    <div className="space-y-2">
+                                        <Label className="text-[12px] font-semibold text-slate-700">VAT (%)</Label>
+                                        <Select
+                                            value={details[selectedDetailIndex].vat_display || DEFAULT_VAT_OPTION.display}
+                                            onValueChange={v => {
+                                                const option = VAT_OPTIONS.find(o => o.display === v)
+                                                const newDetails = [...details]
+                                                newDetails[selectedDetailIndex] = {
+                                                    ...newDetails[selectedDetailIndex],
+                                                    vat_display: v,
+                                                    vat_value: option?.value ?? 0
+                                                }
+                                                setDetails(newDetails)
+                                            }}
+                                        >
+                                            <SelectTrigger className="h-10 rounded-xl border-border/40 bg-muted/5 text-[13px] w-full">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent className="rounded-xl">
+                                                {VAT_OPTIONS.map(opt => (
+                                                    <SelectItem key={opt.display} value={opt.display} className="text-[13px]">{opt.display}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <div className="p-3 bg-primary/5 rounded-xl border border-primary/10">
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] uppercase font-bold text-primary/60 tracking-wider">Thành tiền sau thuế</span>
+                                                <div className="flex items-baseline justify-end gap-1.5">
+                                                    <span className="text-lg font-bold text-primary tabular-nums">
+                                                        {formatCurrency(
+                                                            Number(details[selectedDetailIndex].unit_price || 0) *
+                                                            Number(details[selectedDetailIndex].quantity || 0) *
+                                                            (1 + (Number(details[selectedDetailIndex].vat_value || 0) / 100))
+                                                        )}
+                                                    </span>
+                                                    <span className="text-[10px] font-black text-primary/40 uppercase">VNĐ</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label className="text-[12px] font-semibold text-slate-700">Mục đích sử dụng chi tiết</Label>
+                                    <Input
+                                        value={details[selectedDetailIndex].muc_dich_sd || ''}
+                                        onChange={e => handleDetailChange(selectedDetailIndex, 'muc_dich_sd', e.target.value)}
+                                        placeholder="Giải trình lý do mua sắm chi tiết..."
+                                        className="h-10 rounded-xl border-border/40 bg-muted/5 text-[13px]"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-5">
+                                    <div className="space-y-2">
+                                        <Label className="text-[12px] font-semibold text-slate-700">Hạng mục công trình</Label>
+                                        <Select
+                                            value={details[selectedDetailIndex].category || ''}
+                                            onValueChange={v => handleCategoryChange(selectedDetailIndex, v)}
+                                        >
+                                            <SelectTrigger className="h-10 rounded-xl border-border/40 bg-muted/5 text-[13px] w-full">
+                                                <SelectValue placeholder="Chọn hạng mục..." />
+                                            </SelectTrigger>
+                                            <SelectContent className="rounded-xl">
+                                                {TASK_CATEGORIES.map(cat => (
+                                                    <SelectItem key={cat} value={cat} className="text-[13px]">{cat}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-[12px] font-semibold text-slate-700">Công việc chi tiết</Label>
+                                        <Select
+                                            value={details[selectedDetailIndex].task_description || ''}
+                                            onValueChange={v => handleDetailChange(selectedDetailIndex, 'task_description', v)}
+                                            disabled={!details[selectedDetailIndex].category || loadingTasks[selectedDetailIndex]}
+                                        >
+                                            <SelectTrigger className="h-10 rounded-xl border-border/40 bg-muted/5 text-[13px] w-full">
+                                                <SelectValue placeholder={!details[selectedDetailIndex].category ? "Chọn hạng mục trước" : "Chọn công việc..."} />
+                                            </SelectTrigger>
+                                            <SelectContent className="rounded-xl">
+                                                {(details[selectedDetailIndex].category ? tasksByCategory[details[selectedDetailIndex].category!] || [] : []).map(task => (
+                                                    <SelectItem key={task.task_id} value={task.task_name} className="text-[13px]">{task.task_name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label className="text-[12px] font-semibold text-slate-700">Ghi chú & Quy cách thêm</Label>
+                                    <Textarea
+                                        value={details[selectedDetailIndex].notes || ''}
+                                        onChange={e => handleDetailChange(selectedDetailIndex, 'notes', e.target.value)}
+                                        placeholder="Thông số kỹ thuật hoặc các yêu cầu đặc biệt..."
+                                        className="min-h-[80px] rounded-xl border-border/40 bg-muted/5 resize-none text-[13px]"
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="p-4 border-t bg-muted/10 flex justify-end gap-3 px-6 py-4">
+                        <Button
+                            variant="default"
+                            onClick={() => setIsDetailDialogOpen(false)}
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 rounded-xl font-bold h-11 shadow-lg shadow-primary/20"
+                        >
+                            Hoàn tất
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             <ResourceDialog
                 open={isResourceDialogOpen}

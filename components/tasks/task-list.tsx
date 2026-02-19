@@ -610,15 +610,23 @@ export function TaskList({ projects, projectId }: TaskListProps) {
                                             </div>
                                         </TableCell>
 
-                                        {/* Category */}
+                                        {/* Category/Item */}
                                         <TableCell>
-                                            {task.task_category ? (
-                                                <Badge variant="outline" className="text-xs">
-                                                    {task.task_category}
-                                                </Badge>
-                                            ) : (
-                                                <span className="text-xs text-muted-foreground">-</span>
-                                            )}
+                                            <div className="flex flex-col gap-1">
+                                                {task.project_items && (
+                                                    <div className="flex items-center gap-1.5 text-[11px] font-medium text-blue-600 bg-blue-50/50 px-2 py-0.5 rounded-md border border-blue-100/50 w-fit">
+                                                        <Layers className="h-3 w-3" />
+                                                        {task.project_items.item_name}
+                                                    </div>
+                                                )}
+                                                {task.task_category ? (
+                                                    <Badge variant="outline" className="text-[10px] w-fit font-normal text-slate-400 border-slate-100">
+                                                        {task.task_category}
+                                                    </Badge>
+                                                ) : (
+                                                    !task.project_items && <span className="text-xs text-muted-foreground">-</span>
+                                                )}
+                                            </div>
                                         </TableCell>
 
                                         {/* Tên công việc */}

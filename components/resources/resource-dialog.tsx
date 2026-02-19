@@ -125,21 +125,21 @@ export function ResourceDialog({
                 unit_price: parseFormattedNumber(formData.unit_price)
             }
 
-            console.log('[ResourceDialog] Submitting resource:', submitData)
+
 
             if (resource) {
                 await updateResource(resource.resource_id, submitData)
-                console.log('[ResourceDialog] Update successful')
+
             } else {
                 await createResource(submitData)
-                console.log('[ResourceDialog] Create successful')
+
             }
 
             // Try to refresh the resource list
-            console.log('[ResourceDialog] Calling onSuccess to refresh list...')
+
             try {
                 await onSuccess()
-                console.log('[ResourceDialog] Refresh successful')
+
             } catch (refreshError) {
                 console.error('[ResourceDialog] Refresh FAILED:', refreshError)
                 alert('Tài nguyên đã được lưu vào database, nhưng có lỗi khi cập nhật danh sách. Vui lòng refresh trang (F5) để thấy dữ liệu mới.')

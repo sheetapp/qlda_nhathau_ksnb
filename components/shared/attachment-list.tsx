@@ -10,7 +10,8 @@ import {
     ExternalLink,
     Loader2,
     X,
-    File as FileIcon
+    File as FileIcon,
+    FolderOpen
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -119,11 +120,11 @@ export function AttachmentList({ tableName, refId, title = "Tài liệu đính k
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between">
-                <h3 className="text-[13px] font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
                     <Paperclip className="h-4 w-4 text-primary/70" />
                     {title}
                     {files.length > 0 && (
-                        <Badge variant="secondary" className="ml-1 px-1.5 py-0 h-5 bg-slate-100 dark:bg-slate-800 text-slate-600 border-none font-bold text-[10px]">
+                        <Badge variant="secondary" className="ml-1 px-1.5 py-0 h-5 bg-slate-100 dark:bg-slate-800 text-slate-600 border-none font-medium text-[11px]">
                             {files.length}
                         </Badge>
                     )}
@@ -190,78 +191,101 @@ export function AttachmentList({ tableName, refId, title = "Tài liệu đính k
 
             {/* Add File Dialog */}
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                <DialogContent className="sm:max-w-[480px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
-                    <DialogHeader className="bg-slate-50 dark:bg-slate-900/50 p-8 border-b border-slate-100 dark:border-slate-800">
-                        <DialogTitle className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50 flex items-center gap-3">
+                <DialogContent className="sm:max-w-[480px] rounded-2xl p-0 overflow-hidden border-none shadow-2xl font-sans antialiased">
+                    <DialogHeader className="bg-slate-50/50 dark:bg-slate-900/50 p-6 border-b border-slate-100 dark:border-slate-800">
+                        <DialogTitle className="text-lg font-semibold text-slate-900 dark:text-slate-50 flex items-center gap-3">
                             <Plus className="h-5 w-5 text-primary" />
                             Thêm tài liệu mới
                         </DialogTitle>
-                        <DialogDescription className="text-[13px] text-slate-500">
+                        <DialogDescription className="text-sm text-slate-500 mt-1">
                             Nhập thông tin tài liệu đính kèm cho nghiệp vụ này.
                         </DialogDescription>
                     </DialogHeader>
 
-                    <form onSubmit={handleAddFile} className="p-8 space-y-5">
-                        <div className="space-y-4">
+                    <form onSubmit={handleAddFile} className="p-6 space-y-6">
+                        <div className="space-y-5">
                             <div className="space-y-2">
-                                <label className="text-[11px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">Tên tài liệu *</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">Loại tài liệu</label>
+                                <select
+                                    className="w-full h-10 px-3 rounded-lg border border-slate-200 bg-white dark:bg-slate-950 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                                    value={newType}
+                                    onChange={(e) => setNewType(e.target.value as any)}
+                                >
+                                    <option value="Tài liệu">Tài liệu (PDF/Docs)</option>
+                                    <option value="Ảnh">Ảnh (JPG/PNG)</option>
+                                    <option value="Đính kèm">Đính kèm khác</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">Tên tài liệu *</label>
                                 <Input
                                     placeholder="VD: Hợp đồng đợt 1, Ảnh hiện trạng..."
-                                    className="h-11 rounded-xl border-slate-200 focus:ring-primary/20"
+                                    className="h-10 rounded-lg border-slate-200 focus:ring-primary/20 text-sm transition-all"
                                     value={newName}
                                     onChange={(e) => setNewName(e.target.value)}
                                     required
                                 />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <label className="text-[11px] font-bold uppercase tracking-widest text-slate-400 ml-1">Loại tài liệu</label>
-                                    <select
-                                        className="w-full h-11 px-3 rounded-xl border border-slate-200 bg-white dark:bg-slate-950 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/20"
-                                        value={newType}
-                                        onChange={(e) => setNewType(e.target.value as any)}
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">Đường dẫn tập tin</label>
+                                <div className="flex gap-2">
+                                    <div className="relative flex-1">
+                                        <Input
+                                            placeholder="C:\Documents\file.pdf"
+                                            className="h-10 rounded-lg border-slate-200 pr-10 text-sm transition-all"
+                                            value={newFileName}
+                                            onChange={(e) => setNewFileName(e.target.value)}
+                                        />
+                                        <FolderOpen className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="h-10 rounded-lg border-slate-200 hover:bg-slate-50 px-4 shrink-0 flex items-center gap-2 text-sm font-medium transition-all"
+                                        onClick={() => {
+                                            const input = document.createElement('input');
+                                            input.type = 'file';
+                                            input.onchange = (e: any) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) {
+                                                    setNewFileName(file.name);
+                                                    if (!newName) setNewName(file.name.split('.')[0]);
+                                                }
+                                            };
+                                            input.click();
+                                        }}
                                     >
-                                        <option value="Tài liệu">Tài liệu (PDF/Docs)</option>
-                                        <option value="Ảnh">Ảnh (JPG/PNG)</option>
-                                        <option value="Đính kèm">Đính kèm khác</option>
-                                    </select>
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-[11px] font-bold uppercase tracking-widest text-slate-400 ml-1">Đường dẫn gốc (PC)</label>
-                                    <Input
-                                        placeholder="C:\Documents\file.pdf"
-                                        className="h-11 rounded-xl border-slate-200"
-                                        value={newFileName}
-                                        onChange={(e) => setNewFileName(e.target.value)}
-                                    />
+                                        <FolderOpen className="h-4 w-4 text-primary" />
+                                        <span>Chọn file</span>
+                                    </Button>
                                 </div>
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-[11px] font-bold uppercase tracking-widest text-slate-400 ml-1">Link tài liệu (URL) *</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300 ml-1">HOẶC Đính kèm link tài liệu</label>
                                 <Input
                                     placeholder="https://drive.google.com/..."
-                                    className="h-11 rounded-xl border-slate-200"
+                                    className="h-10 rounded-lg border-slate-200 text-sm transition-all"
                                     value={newUrl}
                                     onChange={(e) => setNewUrl(e.target.value)}
-                                    required
                                 />
                             </div>
                         </div>
 
-                        <DialogFooter className="pt-4">
+                        <DialogFooter className="p-6 pt-2">
                             <Button
                                 type="button"
                                 variant="ghost"
-                                className="h-11 rounded-xl px-6"
+                                className="h-10 rounded-lg px-6 font-medium text-slate-600"
                                 onClick={() => setIsAddDialogOpen(false)}
                             >
                                 Hủy
                             </Button>
                             <Button
                                 type="submit"
-                                className="h-11 rounded-xl px-8 shadow-lg shadow-primary/20 min-w-[120px]"
+                                className="h-10 rounded-lg px-8 shadow-sm font-medium min-w-[120px]"
                                 disabled={isSubmitting}
                             >
                                 {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}

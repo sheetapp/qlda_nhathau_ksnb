@@ -84,19 +84,19 @@ export function ResourceList({ users, projects, projectId }: ResourceListProps) 
     useEffect(() => {
         // Initial load if cache is empty
         if (resources.length === 0) {
-            console.log('[ResourceList] Cache is empty, loading resources...')
+
             setIsLoadingData(true)
             resourceStore.getResources().then(data => {
-                console.log(`[ResourceList] Initial load complete: ${data.length} resources`)
+
                 setResources(data)
                 setIsLoadingData(false)
             })
         } else {
-            console.log(`[ResourceList] Using cached resources: ${resources.length} items`)
+
         }
 
         const unsubscribe = resourceStore.subscribe((data) => {
-            console.log(`[ResourceList] Store updated: ${data.length} resources`)
+
             setResources(data)
             setIsLoadingData(resourceStore.getIsLoading())
         })
@@ -145,10 +145,9 @@ export function ResourceList({ users, projects, projectId }: ResourceListProps) 
     // Log search results
     useEffect(() => {
         if (searchTerm) {
-            console.log(`[ResourceList] Search for "${searchTerm}": ${filteredResources.length} results from ${resources.length} total`)
+
             if (filteredResources.length === 0 && resources.length > 0) {
-                console.log('[ResourceList] No matches found. Sample resource names:',
-                    resources.slice(0, 5).map(r => r.resource_name))
+
             }
         }
     }, [searchTerm, filteredResources.length, resources.length])
@@ -755,9 +754,9 @@ export function ResourceList({ users, projects, projectId }: ResourceListProps) 
                 projects={projects}
                 projectId={projectId}
                 onSuccess={async () => {
-                    console.log('[ResourceList] onSuccess called, refreshing store...')
+
                     await resourceStore.refresh()
-                    console.log('[ResourceList] Store refresh completed')
+
                 }}
             />
         </div>

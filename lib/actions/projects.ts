@@ -20,7 +20,7 @@ async function ensureUserExists(email: string, fullName: string, avatarUrl?: str
         }
 
         if (!existingUser) {
-            console.log(`ensureUserExists: Creating new user for ${email}`)
+
             const { error: insertError } = await adminClient
                 .from('users')
                 .insert({

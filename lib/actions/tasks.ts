@@ -16,6 +16,7 @@ export async function createOneTask(formData: {
     start_date?: string | null
     end_date?: string | null
     status?: string | null
+    project_item_id?: string | null
 }) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -44,6 +45,7 @@ export async function updateOneTask(taskId: string, formData: {
     start_date?: string | null
     end_date?: string | null
     status?: string | null
+    project_item_id?: string | null
 }) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -98,6 +100,9 @@ export async function getTasks(
             *,
             projects (
                 project_name
+            ),
+            project_items (
+                item_name
             )
         `, { count: 'exact' })
 
@@ -156,6 +161,9 @@ export async function getAllTasks(projectId?: string | null) {
                 *,
                 projects (
                     project_name
+                ),
+                project_items (
+                    item_name
                 )
             `)
             .range(offset, offset + BATCH_SIZE - 1)
