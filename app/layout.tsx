@@ -11,7 +11,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Kiểm soát Nội bộ",
+  title: "Quản lý dự án",
   description: "Hệ thống quản lý tài chính và kiểm soát nội bộ doanh nghiệp Xây dựng, Nội thất",
 };
 

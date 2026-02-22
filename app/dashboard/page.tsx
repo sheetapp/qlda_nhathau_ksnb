@@ -39,26 +39,6 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-6 space-y-10">
-      {/* Welcome Section */}
-      <section className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight text-foreground">Tổng quan hệ thống</h2>
-          <p className="text-muted-foreground mt-1">
-            Chào mừng bạn trở lại. Đây là tóm tắt tình hình tài chính và dự án hôm nay.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" className="rounded-xl bg-card/40 backdrop-blur-sm">
-            <Clock className="mr-2 h-4 w-4 opacity-60" />
-            Lịch sử
-          </Button>
-          <Button className="rounded-xl shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90">
-            Báo cáo tổng hợp
-            <ArrowUpRight className="ml-2 h-4 w-4" />
-          </Button>
-        </div>
-      </section>
-
       {/* Stats Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card className="border-none shadow-[0_4px_12px_rgba(0,0,0,0.03)] bg-card/40 backdrop-blur-sm rounded-3xl overflow-hidden hover:shadow-xl transition-all duration-300 group">

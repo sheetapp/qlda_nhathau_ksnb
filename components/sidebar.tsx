@@ -16,6 +16,7 @@ import {
     Layers,
     ChevronRight,
     ChevronLeft,
+    ChevronDown,
     Sun,
     Moon,
     Menu,
@@ -29,16 +30,55 @@ import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 
 const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Trang chủ', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Dự án', href: '/dashboard/projects', icon: FolderKanban },
     { name: 'Hạng mục', href: '/dashboard/project-items', icon: Layers },
     { name: 'Công việc', href: '/dashboard/tasks', icon: CheckSquare },
     { name: 'Tài nguyên', href: '/dashboard/resources', icon: Package },
-    { name: 'Nhà cung cấp', href: '/dashboard/system/suppliers', icon: Users },
-    { name: 'Phiếu yêu cầu', href: '/dashboard/pyc', icon: FileText },
-    { name: 'Đề nghị thanh toán', href: '/dashboard/dntt', icon: Wallet },
-    { name: 'Kho vật tư', href: '/dashboard/warehouse', icon: Warehouse },
-    { name: 'Kiểm soát nội bộ', href: '/dashboard/control', icon: ShieldCheck },
+    { name: 'Tiến độ', href: '/dashboard/progress', icon: TrendingUp },
+    {
+        name: 'Nhân sự',
+        icon: Users,
+        children: [
+            { name: 'Người dùng hệ thống', href: '/dashboard/personnel' },
+            { name: 'Công nhân', href: '/dashboard/personnel/workers' },
+        ]
+    },
+    {
+        name: 'Đối tác',
+        icon: Users,
+        children: [
+            { name: 'Nhà cung cấp', href: '/dashboard/system/suppliers' },
+            { name: 'Thầu phụ', href: '/dashboard/subcontractors' },
+        ]
+    },
+    {
+        name: 'Yêu cầu mua sắm',
+        icon: FileText,
+        children: [
+            { name: 'Phiếu yêu cầu', href: '/dashboard/pyc' },
+            { name: 'Checklist', href: '/dashboard/checklist' },
+            { name: 'Đề nghị thanh toán', href: '/dashboard/dntt' },
+        ]
+    },
+    {
+        name: 'Quản lý kho',
+        icon: Warehouse,
+        children: [
+            { name: 'Danh sách kho', href: '/dashboard/system/warehouses' },
+            { name: 'Nhập kho', href: '/dashboard/inventory/in' },
+            { name: 'Xuất kho', href: '/dashboard/inventory/out' },
+        ]
+    },
+    {
+        name: 'Tài chính',
+        icon: Wallet,
+        children: [
+            { name: 'Thu', href: '/dashboard/finance/income' },
+            { name: 'Chi', href: '/dashboard/system/expenses' },
+            { name: 'Báo cáo', href: '/dashboard/finance/reports' },
+        ]
+    },
     { name: 'Hệ thống', href: '/dashboard/system', icon: Settings2 },
 ]
 
@@ -47,12 +87,26 @@ export function Sidebar() {
     const searchParams = useSearchParams()
     const currentTab = searchParams.get('tab') || 'dashboard'
     const [isCollapsed, setIsCollapsed] = useState(false)
+    const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+        'Yêu cầu mua sắm': true,
+        'Đối tác': true,
+        'Quản lý kho': true,
+        'Tài chính': true,
+        'Nhân sự': true
+    })
     const { theme, setTheme } = useTheme()
+
+    const toggleGroup = (name: string) => {
+        setOpenGroups(prev => ({
+            ...prev,
+            [name]: !prev[name]
+        }))
+    }
 
     return (
         <div
             className={cn(
-                "flex flex-col h-full bg-sidebar backdrop-blur-xl border-r border-sidebar-border transition-all duration-300 relative group",
+                "flex flex-col h-full bg-sidebar backdrop-blur-xl border-r border-sidebar-border transition-all duration-300 relative group font-sans",
                 isCollapsed ? "w-20" : "w-64"
             )}
             onMouseEnter={() => setIsCollapsed(false)}
@@ -98,11 +152,73 @@ export function Sidebar() {
                         Hệ thống
                     </p>
                     {navigation.map((item) => {
-                        const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname?.startsWith(item.href))
+                        const hasChildren = 'children' in item && item.children && item.children.length > 0
+                        const isOpen = openGroups[item.name]
+                        const href = 'href' in item ? (item.href as string) : undefined
+                        const isActive = href ? (pathname === href || (href !== '/dashboard' && pathname?.startsWith(href))) : false
+
+                        // Check if any child is active
+                        const isChildActive = !!(hasChildren && item.children?.some(child => pathname === child.href || (child.href !== '/dashboard' && pathname?.startsWith(child.href))))
+
+                        if (hasChildren) {
+                            return (
+                                <div key={item.name} className="space-y-1">
+                                    <button
+                                        onClick={() => toggleGroup(item.name)}
+                                        className={cn(
+                                            "w-full group flex items-center px-3 py-2 text-sm font-medium rounded-xl transition-all duration-200",
+                                            isChildActive
+                                                ? "bg-sidebar-accent/30 text-sidebar-accent-foreground"
+                                                : "text-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+                                        )}
+                                    >
+                                        <item.icon className={cn(
+                                            "mr-3 h-4.5 w-4.5 transition-colors shrink-0",
+                                            isChildActive ? "text-sidebar-accent-foreground" : "text-foreground/40 group-hover:text-sidebar-accent-foreground",
+                                            isCollapsed && "mr-0"
+                                        )} />
+                                        {!isCollapsed && (
+                                            <>
+                                                <span className="flex-1 text-left whitespace-nowrap overflow-hidden">{item.name}</span>
+                                                <ChevronDown className={cn(
+                                                    "h-3.5 w-3.5 opacity-50 transition-transform duration-200",
+                                                    isOpen ? "rotate-0" : "-rotate-90"
+                                                )} />
+                                            </>
+                                        )}
+                                    </button>
+                                    {!isCollapsed && isOpen && (
+                                        <div className="ml-4 space-y-1 border-l border-sidebar-border ml-7 pl-2">
+                                            {item.children?.map((child) => {
+                                                const isSubActive = pathname === child.href || (child.href !== '/dashboard' && pathname?.startsWith(child.href))
+                                                return (
+                                                    <Link
+                                                        key={child.name}
+                                                        href={child.href}
+                                                        className={cn(
+                                                            "flex items-center px-3 py-1.5 text-[13px] font-medium rounded-lg transition-all duration-200",
+                                                            isSubActive
+                                                                ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
+                                                                : "text-foreground/60 hover:text-sidebar-accent-foreground hover:bg-sidebar-accent/30"
+                                                        )}
+                                                    >
+                                                        <span className="flex-1 whitespace-nowrap overflow-hidden">{child.name}</span>
+                                                        {isSubActive && <div className="w-1 h-1 rounded-full bg-sidebar-accent-foreground" />}
+                                                    </Link>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            )
+                        }
+
+                        if (!href) return null
+
                         return (
                             <Link
                                 key={item.name}
-                                href={item.href}
+                                href={href}
                                 className={cn(
                                     "group flex items-center px-3 py-2 text-sm font-medium rounded-xl transition-all duration-200",
                                     isActive

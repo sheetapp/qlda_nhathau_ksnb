@@ -17,7 +17,8 @@ import {
     ArrowDownToLine,
     CheckSquare,
     ChevronRight,
-    Settings2
+    Settings2,
+    Warehouse
 } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -148,6 +149,13 @@ export default function SystemManagementPage() {
                         icon={Wallet}
                         href="/dashboard/system/expenses"
                         color="bg-orange-50 text-orange-600 dark:bg-orange-500/10"
+                    />
+                    <SystemCard
+                        title="Quản lý Kho"
+                        description="Danh mục các kho bãi, vật tư, thiết bị của dự án."
+                        icon={Warehouse}
+                        href="/dashboard/system/warehouses"
+                        color="bg-blue-50 text-blue-600 dark:bg-blue-500/10"
                     />
                 </div>
             </section>

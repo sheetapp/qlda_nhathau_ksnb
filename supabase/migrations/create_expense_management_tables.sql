@@ -24,3 +24,9 @@ CREATE POLICY "Authenticated users can manage expense_categories" ON expense_cat
 
 -- Add comment
 COMMENT ON TABLE expense_categories IS 'Bảng quản lý danh mục chi phí (Loại chi phí, Nhóm chi phí)';
+
+-- Add description column
+ALTER TABLE expense_categories ADD COLUMN IF NOT EXISTS description TEXT;
+
+-- Add responsible department column
+ALTER TABLE expense_categories ADD COLUMN IF NOT EXISTS responsible_department_id UUID REFERENCES departments(id);

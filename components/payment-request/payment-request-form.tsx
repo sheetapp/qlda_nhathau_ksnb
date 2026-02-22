@@ -45,8 +45,9 @@ import {
     Clock
 } from 'lucide-react'
 import { getApprovedPYCs, createPaymentRequest, getNextDNTTSequence } from '@/lib/actions/payment-requests'
-import { getSuppliers, addSupplier } from '@/lib/actions/system'
+import { getSuppliers, addSupplier, getExpenseCategories } from '@/lib/actions/system'
 import { getProjects, getProjectById } from '@/lib/actions/projects'
+import { getPersonnelList } from '@/lib/actions/personnel'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import {
@@ -82,6 +83,8 @@ export function PaymentRequestForm({ open, onOpenChange, projectId: initialProje
     const [pycs, setPycs] = useState<any[]>([])
     const [suppliers, setSuppliers] = useState<any[]>([])
     const [projects, setProjects] = useState<any[]>([])
+    const [personnel, setPersonnel] = useState<any[]>([])
+    const [expenseCategories, setExpenseCategories] = useState<any[]>([])
     const [selectedProjectId, setSelectedProjectId] = useState<string>(initialProjectId || 'all')
     const [pycSearch, setPycSearch] = useState('')
     const [selectedPYCIds, setSelectedPYCIds] = useState<string[]>([])
@@ -111,6 +114,8 @@ export function PaymentRequestForm({ open, onOpenChange, projectId: initialProje
             loadProjects()
             loadPYCs()
             loadSuppliers()
+            loadPersonnel()
+            loadExpenseCategories()
             setStep(1)
             setSelectedPYCIds([])
             setSelectedItems([])
@@ -163,6 +168,24 @@ export function PaymentRequestForm({ open, onOpenChange, projectId: initialProje
             setSuppliers(data || [])
         } catch (error) {
             console.error("Error loading suppliers:", error)
+        }
+    }
+
+    const loadPersonnel = async () => {
+        try {
+            const data = await getPersonnelList()
+            setPersonnel(data || [])
+        } catch (error) {
+            console.error("Error loading personnel:", error)
+        }
+    }
+
+    const loadExpenseCategories = async () => {
+        try {
+            const data = await getExpenseCategories()
+            setExpenseCategories(data || [])
+        } catch (error) {
+            console.error("Error loading expense categories:", error)
         }
     }
 
@@ -224,12 +247,62 @@ export function PaymentRequestForm({ open, onOpenChange, projectId: initialProje
 
     const totals = useMemo(() => {
         return selectedItems.reduce((acc, item) => {
-            acc.gross += item.calculated_gross
-            acc.net += item.calculated_net
-            acc.vat += item.calculated_vat_amount
+            const qty = Number(item.quantity || 0)
+            const price = Number(item.unit_price || 0)
+            const vatRate = Number(item.vat_value || 0) / 100
+            const gross = qty * price
+            const net = gross / (1 + vatRate)
+            const vatAmount = gross - net
+
+            acc.gross += gross
+            acc.net += net
+            acc.vat += vatAmount
             return acc
         }, { gross: 0, net: 0, vat: 0 })
     }, [selectedItems])
+
+    // Helper to format number with thousand separators
+    const formatNumber = (num: number | string) => {
+        if (num === '' || num === null || num === undefined) return ''
+        const val = typeof num === 'string' ? parseFloat(num.replace(/[^0-9.-]+/g, "")) : num
+        if (isNaN(val)) return ''
+        return new Intl.NumberFormat('vi-VN').format(val)
+    }
+
+    // Helper to parse formatted string back to number
+    const parseNumber = (str: string) => {
+        return parseFloat(str.replace(/\./g, '').replace(/,/g, '.')) || 0
+    }
+
+    const handleItemChange = (itemId: string, field: 'quantity' | 'unit_price', value: string) => {
+        const numValue = parseNumber(value)
+
+        setSelectedItems(prev => prev.map(item => {
+            if (item.id === itemId) {
+                const updatedItem = {
+                    ...item,
+                    [field]: numValue,
+                    [field === 'quantity' ? 'is_qty_from_pyc' : 'is_price_from_pyc']: false
+                }
+
+                // Recalculate derived values for this item
+                const qty = Number(updatedItem.quantity || 0)
+                const price = Number(updatedItem.unit_price || 0)
+                const vatRate = Number(updatedItem.vat_value || 0) / 100
+                const gross = qty * price
+                const net = gross / (1 + vatRate)
+                const vatAmount = gross - net
+
+                return {
+                    ...updatedItem,
+                    calculated_gross: gross,
+                    calculated_net: net,
+                    calculated_vat_amount: vatAmount
+                }
+            }
+            return item
+        }))
+    }
 
     const handleQuickAddSupplier = async () => {
         if (!newSupplier.supplier_name) {
@@ -295,6 +368,17 @@ export function PaymentRequestForm({ open, onOpenChange, projectId: initialProje
     }
 
     const handleSubmit = async () => {
+        // Validation for mandatory fields
+        if (!headerData.payment_request_id) { toast.error("Vui lòng nhập Mã đề nghị thanh toán"); return }
+        if (!headerData.request_date) { toast.error("Vui lòng chọn Ngày đề nghị"); return }
+        if (!headerData.payment_reason) { toast.error("Vui lòng nhập Lý do thanh toán"); return }
+        if (!headerData.supplier_name) { toast.error("Vui lòng chọn Nhà cung cấp"); return }
+        if (!headerData.expense_type_name) { toast.error("Vui lòng chọn Loại chi phí"); return }
+        if (!headerData.contract_type_code) { toast.error("Vui lòng chọn Loại hợp đồng"); return }
+        if (!headerData.document_number) { toast.error("Vui lòng nhập Số chứng từ"); return }
+        if (!headerData.payer_type) { toast.error("Vui lòng chọn Đối tượng chi trả"); return }
+        if (!headerData.payment_type_code) { toast.error("Vui lòng chọn Phương thức thanh toán"); return }
+
         try {
             setLoading(true)
 
@@ -379,13 +463,13 @@ export function PaymentRequestForm({ open, onOpenChange, projectId: initialProje
                                         value={selectedProjectId}
                                         onValueChange={setSelectedProjectId}
                                     >
-                                        <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-white dark:bg-slate-950">
+                                        <SelectTrigger className="h-11 rounded-lg border-slate-200 bg-white dark:bg-slate-950 text-[13px] font-medium text-slate-700">
                                             <SelectValue placeholder="Tất cả dự án..." />
                                         </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">Tất cả dự án</SelectItem>
+                                        <SelectContent className="rounded-lg border-slate-100 shadow-xl">
+                                            <SelectItem value="all" className="text-[13px]">Tất cả dự án</SelectItem>
                                             {projects.map(p => (
-                                                <SelectItem key={p.project_id} value={p.project_id}>{p.project_name}</SelectItem>
+                                                <SelectItem key={p.project_id} value={p.project_id} className="text-[13px]">{p.project_name}</SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
@@ -398,7 +482,7 @@ export function PaymentRequestForm({ open, onOpenChange, projectId: initialProje
                                             placeholder="Mã hoặc tiêu đề phiếu..."
                                             value={pycSearch}
                                             onChange={(e) => setPycSearch(e.target.value)}
-                                            className="h-11 pl-10 rounded-xl border-slate-200 bg-white dark:bg-slate-950"
+                                            className="h-11 pl-10 rounded-lg border-slate-200 bg-white dark:bg-slate-950 text-[13px] font-medium text-slate-700"
                                         />
                                     </div>
                                 </div>
@@ -423,6 +507,7 @@ export function PaymentRequestForm({ open, onOpenChange, projectId: initialProje
                                                     />
                                                 </TableHead>
                                                 <TableHead className="text-[11px] font-medium uppercase tracking-wider text-slate-500">Mã PYC</TableHead>
+                                                <TableHead className="text-[11px] font-medium uppercase tracking-wider text-slate-500">Dự án</TableHead>
                                                 <TableHead className="text-[11px] font-medium uppercase tracking-wider text-slate-500">Tiêu đề</TableHead>
                                                 <TableHead className="text-[11px] font-medium uppercase tracking-wider text-slate-500 text-right">Giá trị</TableHead>
                                                 <TableHead className="text-[11px] font-medium uppercase tracking-wider text-slate-500">Người lập</TableHead>
@@ -432,7 +517,7 @@ export function PaymentRequestForm({ open, onOpenChange, projectId: initialProje
                                         <TableBody>
                                             {loading ? (
                                                 <TableRow>
-                                                    <TableCell colSpan={6} className="text-center py-20">
+                                                    <TableCell colSpan={7} className="text-center py-20">
                                                         <div className="flex flex-col items-center gap-3">
                                                             <Loader2 className="animate-spin h-8 w-8 text-primary/30" />
                                                             <p className="text-xs text-slate-400 font-medium">Đang tải danh sách PYC...</p>
@@ -441,7 +526,7 @@ export function PaymentRequestForm({ open, onOpenChange, projectId: initialProje
                                                 </TableRow>
                                             ) : filteredPYCs.length === 0 ? (
                                                 <TableRow>
-                                                    <TableCell colSpan={6} className="h-64 text-center">
+                                                    <TableCell colSpan={7} className="h-64 text-center">
                                                         <div className="flex flex-col items-center justify-center gap-2 opacity-30">
                                                             <FileText className="h-12 w-12" />
                                                             <p className="text-sm font-medium">Không tìm thấy PYC phù hợp</p>
@@ -472,6 +557,9 @@ export function PaymentRequestForm({ open, onOpenChange, projectId: initialProje
                                                             />
                                                         </TableCell>
                                                         <TableCell className="font-mono text-xs font-semibold text-primary tracking-tight">{pyc.request_id}</TableCell>
+                                                        <TableCell className="text-[12px] font-medium text-slate-600 truncate max-w-[150px]" title={pyc.projects?.project_name}>
+                                                            {pyc.projects?.project_name || "-"}
+                                                        </TableCell>
                                                         <TableCell className="text-[13px] font-medium text-slate-900 dark:text-slate-100">{pyc.title}</TableCell>
                                                         <TableCell className="text-right font-mono text-[13px] font-semibold text-slate-800 dark:text-slate-200">
                                                             {new Intl.NumberFormat('vi-VN').format(pyc.total_amount)}
@@ -491,18 +579,27 @@ export function PaymentRequestForm({ open, onOpenChange, projectId: initialProje
                                                             </div>
                                                         </TableCell>
                                                         <TableCell>
-                                                            <div className="flex items-center gap-2">
-                                                                <Avatar className="h-8 w-8 border-2 border-slate-50">
-                                                                    <AvatarImage src={pyc.approver?.avatar_url} />
-                                                                    <AvatarFallback className="bg-slate-100 text-slate-400 text-[10px] font-bold uppercase">
-                                                                        {pyc.approver?.full_name?.substring(0, 2) || pyc.approved_by?.substring(0, 2) || 'S'}
-                                                                    </AvatarFallback>
-                                                                </Avatar>
-                                                                <div className="flex flex-col gap-0.5">
-                                                                    <div className="text-[12px] font-medium text-slate-800 dark:text-slate-200 whitespace-nowrap leading-none mb-0.5">{pyc.approver?.full_name || pyc.approved_by || 'Chờ duyệt'}</div>
-                                                                    <div className="text-[10px] text-slate-400 font-medium">{pyc.approved_at ? new Date(pyc.approved_at).toLocaleDateString('vi-VN') : '-'}</div>
-                                                                </div>
-                                                            </div>
+                                                            {(() => {
+                                                                const approver = personnel.find(u => u.email === pyc.approved_by)
+                                                                return (
+                                                                    <div className="flex items-center gap-2">
+                                                                        <Avatar className="h-8 w-8 border-2 border-slate-50">
+                                                                            <AvatarImage src={approver?.avatar_url} />
+                                                                            <AvatarFallback className="bg-primary/5 text-primary text-[10px] font-bold uppercase">
+                                                                                {approver?.full_name?.substring(0, 2) || pyc.approved_by?.substring(0, 2) || '?'}
+                                                                            </AvatarFallback>
+                                                                        </Avatar>
+                                                                        <div className="flex flex-col gap-0.5">
+                                                                            <div className="text-[12px] font-medium text-slate-800 dark:text-slate-200 whitespace-nowrap leading-none mb-0.5">
+                                                                                {approver?.full_name || pyc.approved_by}
+                                                                            </div>
+                                                                            <div className="text-[10px] text-slate-400 font-medium">
+                                                                                {pyc.approved_at ? new Date(pyc.approved_at).toLocaleDateString('vi-VN') : '-'}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                )
+                                                            })()}
                                                         </TableCell>
                                                     </TableRow>
                                                 ))
@@ -577,10 +674,30 @@ export function PaymentRequestForm({ open, onOpenChange, projectId: initialProje
                                                             </div>
                                                         </TableCell>
                                                         <TableCell className="text-center text-xs text-slate-600 font-medium">{item.unit}</TableCell>
-                                                        <TableCell className="text-right font-mono text-xs text-slate-900">{new Intl.NumberFormat('vi-VN').format(item.quantity)}</TableCell>
-                                                        <TableCell className="text-right font-mono text-xs text-slate-600">{new Intl.NumberFormat('vi-VN').format(item.unit_price)}</TableCell>
+                                                        <TableCell className="text-right p-2" onClick={(e) => e.stopPropagation()}>
+                                                            <Input
+                                                                type="text"
+                                                                value={formatNumber(isSelected ? selectedItems.find(i => i.id === item.id)?.quantity : item.quantity)}
+                                                                onChange={(e) => handleItemChange(item.id, 'quantity', e.target.value)}
+                                                                className="h-9 text-right font-mono text-[13px] w-28 ml-auto border-slate-200 focus:ring-primary/20 rounded-lg bg-white font-semibold"
+                                                                disabled={!isSelected}
+                                                            />
+                                                        </TableCell>
+                                                        <TableCell className="text-right p-2" onClick={(e) => e.stopPropagation()}>
+                                                            <Input
+                                                                type="text"
+                                                                value={formatNumber(isSelected ? selectedItems.find(i => i.id === item.id)?.unit_price : item.unit_price)}
+                                                                onChange={(e) => handleItemChange(item.id, 'unit_price', e.target.value)}
+                                                                className="h-9 text-right font-mono text-[13px] w-32 ml-auto border-slate-200 focus:ring-primary/20 rounded-lg bg-white font-semibold"
+                                                                disabled={!isSelected}
+                                                            />
+                                                        </TableCell>
                                                         <TableCell className="text-right font-mono text-xs font-bold text-slate-900">
-                                                            {new Intl.NumberFormat('vi-VN').format(Number(item.quantity) * Number(item.unit_price))}
+                                                            {new Intl.NumberFormat('vi-VN').format(
+                                                                isSelected
+                                                                    ? (selectedItems.find(i => i.id === item.id)?.calculated_gross || 0)
+                                                                    : (Number(item.quantity) * Number(item.unit_price))
+                                                            )}
                                                         </TableCell>
                                                     </TableRow>
                                                 )
@@ -594,281 +711,285 @@ export function PaymentRequestForm({ open, onOpenChange, projectId: initialProje
 
                     {step === 3 && (
                         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <div className="grid grid-cols-2 gap-8">
-                                <div className="space-y-6">
-                                    <h4 className="text-[13px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                                        <FileText className="h-4 w-4" />
-                                        Thông tin chung
-                                    </h4>
-                                    <div className="space-y-4">
-                                        <div className="grid gap-2">
-                                            <Label className="text-[11px] font-semibold text-slate-500 ml-1">Mã đề nghị thanh toán *</Label>
-                                            <Input
-                                                value={headerData.payment_request_id}
-                                                onChange={(e) => setHeaderData({ ...headerData, payment_request_id: e.target.value })}
-                                                className="h-10 rounded-xl border-slate-200 focus:ring-primary/20 transition-all font-mono"
-                                                required
-                                            />
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="grid gap-2">
-                                                <Label className="text-[11px] font-semibold text-slate-500 ml-1">Ngày đề nghị</Label>
-                                                <Input
-                                                    type="date"
-                                                    value={headerData.request_date}
-                                                    onChange={(e) => setHeaderData({ ...headerData, request_date: e.target.value })}
-                                                    className="h-10 rounded-xl border-slate-200 focus:ring-primary/20 transition-all text-xs"
-                                                />
-                                            </div>
-                                            <div className="grid gap-2">
-                                                <Label className="text-[11px] font-semibold text-slate-500 ml-1">Hình thức thanh toán</Label>
-                                                <Select
-                                                    value={headerData.payment_method}
-                                                    onValueChange={(val) => setHeaderData({ ...headerData, payment_method: val })}
-                                                >
-                                                    <SelectTrigger className="h-10 rounded-xl border-slate-200 focus:ring-primary/20 transition-all text-xs">
-                                                        <SelectValue placeholder="Chọn hình thức" />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="rounded-xl border-slate-100 shadow-xl">
-                                                        <SelectItem value="Chuyển khoản">Chuyển khoản</SelectItem>
-                                                        <SelectItem value="Tiền mặt">Tiền mặt</SelectItem>
-                                                        <SelectItem value="Tạm ứng">Tạm ứng</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </div>
-                                        <div className="grid gap-2">
-                                            <Label className="text-[11px] font-bold text-slate-600 ml-1">Nhà cung cấp / Đối tác *</Label>
-                                            <div className="flex gap-2">
-                                                <Popover>
-                                                    <PopoverTrigger asChild>
-                                                        <Button
-                                                            variant="outline"
-                                                            role="combobox"
-                                                            className={cn(
-                                                                "h-10 grow justify-between rounded-xl border-slate-200 font-normal px-3",
-                                                                !headerData.supplier_name && "text-slate-400"
-                                                            )}
-                                                        >
-                                                            {headerData.supplier_name
-                                                                ? suppliers.find((s) => s.supplier_name === headerData.supplier_name)?.supplier_name || headerData.supplier_name
-                                                                : "Chọn nhà cung cấp..."}
-                                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                                        </Button>
-                                                    </PopoverTrigger>
-                                                    <PopoverContent className="w-[400px] p-0 rounded-xl" align="start">
-                                                        <Command>
-                                                            <CommandInput placeholder="Tìm nhà cung cấp..." />
-                                                            <CommandList>
-                                                                <CommandEmpty>Không tìm thấy nhà cung cấp nào.</CommandEmpty>
-                                                                <CommandGroup>
-                                                                    {suppliers.map((s) => (
-                                                                        <CommandItem
-                                                                            key={s.id}
-                                                                            value={s.supplier_name}
-                                                                            onSelect={() => {
-                                                                                setHeaderData({
-                                                                                    ...headerData,
-                                                                                    supplier_name: s.supplier_name,
-                                                                                    supplier_tax_code: s.tax_code || ''
-                                                                                })
-                                                                            }}
-                                                                        >
-                                                                            <Check
-                                                                                className={cn(
-                                                                                    "mr-2 h-4 w-4",
-                                                                                    headerData.supplier_name === s.supplier_name ? "opacity-100" : "opacity-0"
-                                                                                )}
-                                                                            />
-                                                                            <div className="flex flex-col">
-                                                                                <span className="font-medium">{s.supplier_name}</span>
-                                                                                {s.tax_code && <span className="text-[10px] text-slate-400 font-mono">MST: {s.tax_code}</span>}
-                                                                            </div>
-                                                                        </CommandItem>
-                                                                    ))}
-                                                                </CommandGroup>
-                                                            </CommandList>
-                                                        </Command>
-                                                    </PopoverContent>
-                                                </Popover>
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="icon"
-                                                    className="h-10 w-10 rounded-xl bg-primary/5 text-primary border-primary/20 hover:bg-primary/10"
-                                                    onClick={() => setIsAddingSupplier(true)}
-                                                    title="Thêm nhà cung cấp mới"
-                                                >
-                                                    <Plus className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </div>
+                            {/* Unified Grid Layout for balanced rows */}
+                            <div className="grid grid-cols-2 gap-x-12 gap-y-6">
+                                {/* Header Row */}
+                                <h4 className="text-[13px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                                    <FileText className="h-4 w-4" />
+                                    Thông tin chung
+                                </h4>
+                                <h4 className="text-[13px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                                    <Truck className="h-4 w-4" />
+                                    Phân loại chi phí & Hợp đồng
+                                </h4>
 
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="grid gap-2">
-                                                <Label className="text-[11px] font-medium text-slate-500 ml-1">Số hiệu chứng từ (DNTT) *</Label>
-                                                <Input
-                                                    placeholder="VD: DNTT-001..."
-                                                    value={headerData.document_number}
-                                                    onChange={(e) => setHeaderData({ ...headerData, document_number: e.target.value })}
-                                                    className="h-10 rounded-xl border-slate-200 focus:ring-primary/20 transition-all text-sm"
-                                                    required
-                                                />
-                                            </div>
-                                            <div className="grid gap-2">
-                                                <Label className="text-[11px] font-medium text-slate-500 ml-1">Mã số thuế NCC</Label>
-                                                <Input
-                                                    placeholder="Tự động hoặc nhập tay..."
-                                                    value={headerData.supplier_tax_code}
-                                                    onChange={(e) => setHeaderData({ ...headerData, supplier_tax_code: e.target.value })}
-                                                    className="h-10 rounded-xl border-slate-200 focus:ring-primary/20 transition-all text-sm font-mono"
-                                                />
-                                            </div>
-                                        </div>
+                                {/* Row 1: ID vs Expense Type */}
+                                <div className="grid gap-2">
+                                    <Label className="text-[11px] font-bold text-slate-700 ml-1 uppercase tracking-wider">Mã đề nghị thanh toán *</Label>
+                                    <Input
+                                        value={headerData.payment_request_id}
+                                        onChange={(e) => setHeaderData({ ...headerData, payment_request_id: e.target.value })}
+                                        className="h-11 rounded-lg border-slate-200 focus:ring-primary/20 transition-all font-mono text-[13px] text-slate-700 bg-white"
+                                        required
+                                    />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label className="text-[11px] font-bold text-slate-700 ml-1 uppercase tracking-wider">Tên chi phí (Loại chi phí) *</Label>
+                                    <Select
+                                        value={headerData.expense_type_name}
+                                        onValueChange={(val) => {
+                                            const category = expenseCategories.find(c => c.type_name === val)
+                                            setHeaderData({
+                                                ...headerData,
+                                                expense_type_name: val,
+                                                expense_group_name: category?.group_name || ''
+                                            })
+                                        }}
+                                    >
+                                        <SelectTrigger className="w-full h-11 rounded-lg border-slate-200 focus:ring-primary/20 transition-all text-[13px] font-medium text-slate-800 bg-white hover:bg-slate-50 shadow-sm px-4">
+                                            <SelectValue placeholder="Chọn loại chi phí hệ thống..." />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-lg border-slate-100 shadow-xl max-h-[300px]">
+                                            {Array.from(new Set(expenseCategories.map(c => c.type_name))).map(typeName => (
+                                                <SelectItem key={typeName} value={typeName} className="text-[13px] py-2.5">
+                                                    {typeName}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
 
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="grid gap-2">
-                                                <Label className="text-[11px] font-medium text-slate-500 ml-1">Người chi (Bộ phận)</Label>
-                                                <Select
-                                                    value={headerData.payer_type}
-                                                    onValueChange={(val) => setHeaderData({ ...headerData, payer_type: val })}
-                                                >
-                                                    <SelectTrigger className="h-10 rounded-xl border-slate-200 focus:ring-primary/20 transition-all text-xs">
-                                                        <SelectValue placeholder="Chọn bộ phận chi" />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="rounded-xl border-slate-100 shadow-xl">
-                                                        <SelectItem value="BĐH DA">BĐH DA (Dự án)</SelectItem>
-                                                        <SelectItem value="VPC">VPC (Văn phòng công ty)</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div className="grid gap-2">
-                                                <Label className="text-[11px] font-medium text-slate-500 ml-1">Mã kiểu thanh toán</Label>
-                                                <Select
-                                                    value={headerData.payment_type_code}
-                                                    onValueChange={(val) => setHeaderData({ ...headerData, payment_type_code: val, payment_method: val === 'CK' ? 'Chuyển khoản' : 'Tiền mặt' })}
-                                                >
-                                                    <SelectTrigger className="h-10 rounded-xl border-slate-200 focus:ring-primary/20 transition-all text-xs">
-                                                        <SelectValue placeholder="Chọn kiểu" />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="rounded-xl border-slate-100 shadow-xl text-xs">
-                                                        <SelectItem value="CK">Chuyển khoản (CK)</SelectItem>
-                                                        <SelectItem value="TM">Tiền mặt (TM)</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </div>
-                                        <div className="grid gap-2">
-                                            <Label className="text-[11px] font-semibold text-slate-500 ml-1">Nội dung thanh toán *</Label>
-                                            <Input
-                                                placeholder="VD: Thanh toán đợt 1 cung cấp vật tư thép..."
-                                                value={headerData.payment_reason}
-                                                onChange={(e) => setHeaderData({ ...headerData, payment_reason: e.target.value })}
-                                                className="h-10 rounded-xl border-slate-200 focus:ring-primary/20 transition-all text-sm"
-                                                required
-                                            />
-                                        </div>
-                                        <div className="grid gap-2">
-                                            <Label className="text-[11px] font-semibold text-slate-500 ml-1">Ghi chú thêm</Label>
-                                            <Input
-                                                placeholder="Thông tin bổ sung nếu có..."
-                                                value={headerData.notes}
-                                                onChange={(e) => setHeaderData({ ...headerData, notes: e.target.value })}
-                                                className="h-10 rounded-xl border-slate-200 focus:ring-primary/20 transition-all text-sm"
-                                            />
-                                        </div>
+                                {/* Row 2: Date/Method vs Expense Group */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                        <Label className="text-[11px] font-bold text-slate-700 ml-1 uppercase tracking-wider">Ngày đề nghị *</Label>
+                                        <Input
+                                            type="date"
+                                            value={headerData.request_date}
+                                            onChange={(e) => setHeaderData({ ...headerData, request_date: e.target.value })}
+                                            className="h-11 rounded-lg border-slate-200 focus:ring-primary/20 transition-all text-[13px] font-medium text-slate-700 bg-white"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label className="text-[11px] font-bold text-slate-700 ml-1 uppercase tracking-wider">Hình thức *</Label>
+                                        <Select
+                                            value={headerData.payment_method}
+                                            onValueChange={(val) => setHeaderData({ ...headerData, payment_method: val })}
+                                        >
+                                            <SelectTrigger className="w-full h-11 rounded-lg border-slate-200 focus:ring-primary/20 transition-all text-[13px] font-medium text-slate-800 bg-white hover:bg-slate-50 shadow-sm px-4">
+                                                <SelectValue placeholder="Chọn..." />
+                                            </SelectTrigger>
+                                            <SelectContent className="rounded-lg border-slate-100 shadow-xl">
+                                                <SelectItem value="Chuyển khoản" className="text-[13px]">Chuyển khoản</SelectItem>
+                                                <SelectItem value="Tiền mặt" className="text-[13px]">Tiền mặt</SelectItem>
+                                                <SelectItem value="Tạm ứng" className="text-[13px]">Tạm ứng</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label className="text-[11px] font-bold text-slate-700 ml-1 uppercase tracking-wider">Nhóm chi phí</Label>
+                                    <div className="relative">
+                                        <Input
+                                            placeholder="Tự động theo loại chi phí..."
+                                            value={headerData.expense_group_name}
+                                            readOnly
+                                            className="h-11 rounded-lg border-slate-200 bg-slate-50/50 text-[13px] font-medium text-slate-500 cursor-not-allowed"
+                                        />
                                     </div>
                                 </div>
 
-                                <div className="space-y-6">
-                                    <h4 className="text-[13px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-                                        <Truck className="h-4 w-4" />
-                                        Phân loại chi phí & Hợp đồng
-                                    </h4>
-                                    <div className="space-y-4">
+                                {/* Row 3: Supplier vs Contract Type */}
+                                <div className="grid gap-2">
+                                    <Label className="text-[11px] font-bold text-slate-700 ml-1 uppercase tracking-wider">Nhà cung cấp / Đối tác *</Label>
+                                    <div className="flex items-center w-full gap-2 overflow-hidden">
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button
+                                                    variant="outline"
+                                                    role="combobox"
+                                                    className={cn(
+                                                        "h-11 flex-1 justify-between rounded-lg border-slate-200 font-medium px-4 text-[13px] text-slate-800 bg-white hover:bg-slate-50 shadow-sm min-w-0 overflow-hidden",
+                                                        !headerData.supplier_name && "text-slate-400 font-normal"
+                                                    )}
+                                                >
+                                                    <span className="truncate mr-2">
+                                                        {headerData.supplier_name
+                                                            ? suppliers.find((s) => s.supplier_name === headerData.supplier_name)?.supplier_name || headerData.supplier_name
+                                                            : "Chọn nhà cung cấp..."}
+                                                    </span>
+                                                    <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-[400px] p-0 rounded-lg" align="start">
+                                                <Command>
+                                                    <CommandInput placeholder="Tìm nhà cung cấp..." />
+                                                    <CommandList>
+                                                        <CommandEmpty>Không tìm thấy.</CommandEmpty>
+                                                        <CommandGroup>
+                                                            {suppliers.map((s) => (
+                                                                <CommandItem
+                                                                    key={s.id}
+                                                                    value={s.supplier_name}
+                                                                    onSelect={() => {
+                                                                        setHeaderData({
+                                                                            ...headerData,
+                                                                            supplier_name: s.supplier_name,
+                                                                            supplier_tax_code: s.tax_code || ''
+                                                                        })
+                                                                    }}
+                                                                >
+                                                                    <Check
+                                                                        className={cn(
+                                                                            "mr-2 h-4 w-4",
+                                                                            headerData.supplier_name === s.supplier_name ? "opacity-100" : "opacity-0"
+                                                                        )}
+                                                                    />
+                                                                    <div className="flex flex-col">
+                                                                        <span className="font-medium text-[13px]">{s.supplier_name}</span>
+                                                                        {s.tax_code && <span className="text-[10px] text-slate-400 font-mono">MST: {s.tax_code}</span>}
+                                                                    </div>
+                                                                </CommandItem>
+                                                            ))}
+                                                        </CommandGroup>
+                                                    </CommandList>
+                                                </Command>
+                                            </PopoverContent>
+                                        </Popover>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="icon"
+                                            className="h-11 w-11 rounded-lg bg-primary/5 text-primary border-primary/20 hover:bg-primary/10 shrink-0"
+                                            onClick={() => setIsAddingSupplier(true)}
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label className="text-[11px] font-bold text-slate-700 ml-1 uppercase tracking-wider">Loại hợp đồng *</Label>
+                                    <Select
+                                        value={headerData.contract_type_code}
+                                        onValueChange={(val) => setHeaderData({ ...headerData, contract_type_code: val })}
+                                    >
+                                        <SelectTrigger className="w-full h-11 rounded-lg border-slate-200 focus:ring-primary/20 transition-all text-[13px] font-medium text-slate-800 bg-white hover:bg-slate-50 shadow-sm px-4">
+                                            <SelectValue placeholder="Chọn loại hợp đồng" />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-lg border-slate-100 shadow-xl">
+                                            <SelectItem value="HDTP" className="text-[13px]">Có hợp đồng Thầu phụ</SelectItem>
+                                            <SelectItem value="HDCC" className="text-[13px]">Có hợp đồng Cung cấp</SelectItem>
+                                            <SelectItem value="PO" className="text-[13px]">Đơn đặt hàng (PO)</SelectItem>
+                                            <SelectItem value="NONE" className="text-[13px]">Không có hợp đồng</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Row 4: DocNum/Tax vs Summary Box (Span starts) */}
+                                <div className="grid gap-4">
+                                    <div className="grid grid-cols-2 gap-4">
                                         <div className="grid gap-2">
-                                            <Label className="text-[11px] font-medium text-slate-500 ml-1">Tên loại chi phí</Label>
+                                            <Label className="text-[11px] font-bold text-slate-700 ml-1 uppercase tracking-wider">Số chứng từ (DNTT) *</Label>
+                                            <Input
+                                                placeholder="VD: DNTT-001..."
+                                                value={headerData.document_number}
+                                                onChange={(e) => setHeaderData({ ...headerData, document_number: e.target.value })}
+                                                className="h-11 rounded-lg border-slate-200 focus:ring-primary/20 transition-all text-[13px] font-medium text-slate-700 bg-white"
+                                                required
+                                            />
+                                        </div>
+                                        <div className="grid gap-2">
+                                            <Label className="text-[11px] font-bold text-slate-700 ml-1 uppercase tracking-wider">MST NCC</Label>
+                                            <Input
+                                                placeholder="Tự động..."
+                                                value={headerData.supplier_tax_code}
+                                                onChange={(e) => setHeaderData({ ...headerData, supplier_tax_code: e.target.value })}
+                                                className="h-11 rounded-lg border-slate-200 focus:ring-primary/20 transition-all text-[13px] font-medium text-slate-700 bg-white font-mono"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid gap-2">
+                                            <Label className="text-[11px] font-bold text-slate-700 ml-1 uppercase tracking-wider">Đối tượng chi trả *</Label>
                                             <Select
-                                                value={headerData.expense_type_name}
-                                                onValueChange={(val) => setHeaderData({ ...headerData, expense_type_name: val })}
+                                                value={headerData.payer_type}
+                                                onValueChange={(val) => setHeaderData({ ...headerData, payer_type: val })}
                                             >
-                                                <SelectTrigger className="h-10 rounded-xl border-slate-200 focus:ring-primary/20 transition-all text-xs">
-                                                    <SelectValue placeholder="Chọn loại chi phí" />
+                                                <SelectTrigger className="w-full h-11 rounded-lg border-slate-200 focus:ring-primary/20 transition-all text-[13px] font-medium text-slate-800 bg-white hover:bg-slate-50 shadow-sm px-4">
+                                                    <SelectValue placeholder="Chọn..." />
                                                 </SelectTrigger>
-                                                <SelectContent className="rounded-xl border-slate-100 shadow-xl text-xs">
-                                                    <SelectItem value="Chi phí vật tư">Chi phí vật tư</SelectItem>
-                                                    <SelectItem value="Chi phí nhân công">Chi phí nhân công</SelectItem>
-                                                    <SelectItem value="Chi phí máy thi công">Chi phí máy thi công</SelectItem>
-                                                    <SelectItem value="Chi phí quản lý">Chi phí quản lý</SelectItem>
+                                                <SelectContent className="rounded-lg border-slate-100 shadow-xl">
+                                                    <SelectItem value="BĐH DA" className="text-[13px]">BĐH DA (Dự án)</SelectItem>
+                                                    <SelectItem value="VPC" className="text-[13px]">VPC (Văn phòng)</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </div>
-
                                         <div className="grid gap-2">
-                                            <Label className="text-[11px] font-medium text-slate-500 ml-1">Tên nhóm chi phí</Label>
-                                            <Input
-                                                placeholder="Nhập tên nhóm chi phí..."
-                                                value={headerData.expense_group_name}
-                                                onChange={(e) => setHeaderData({ ...headerData, expense_group_name: e.target.value })}
-                                                className="h-10 rounded-xl border-slate-200 focus:ring-primary/20 transition-all text-sm"
-                                            />
-                                        </div>
-
-                                        <div className="grid gap-2">
-                                            <Label className="text-[11px] font-medium text-slate-500 ml-1">Mã loại hợp đồng</Label>
+                                            <Label className="text-[11px] font-bold text-slate-700 ml-1 uppercase tracking-wider">Phương thức TT *</Label>
                                             <Select
-                                                value={headerData.contract_type_code}
-                                                onValueChange={(val) => setHeaderData({ ...headerData, contract_type_code: val })}
+                                                value={headerData.payment_type_code}
+                                                onValueChange={(val) => setHeaderData({ ...headerData, payment_type_code: val, payment_method: val === 'CK' ? 'Chuyển khoản' : 'Tiền mặt' })}
                                             >
-                                                <SelectTrigger className="h-10 rounded-xl border-slate-200 focus:ring-primary/20 transition-all text-xs">
-                                                    <SelectValue placeholder="Chọn loại hợp đồng" />
+                                                <SelectTrigger className="w-full h-11 rounded-lg border-slate-200 focus:ring-primary/20 transition-all text-[13px] font-medium text-slate-800 bg-white hover:bg-slate-50 shadow-sm px-4">
+                                                    <SelectValue placeholder="Chọn..." />
                                                 </SelectTrigger>
-                                                <SelectContent className="rounded-xl border-slate-100 shadow-xl text-xs">
-                                                    <SelectItem value="HDTP">Có hợp đồng Thầu phụ</SelectItem>
-                                                    <SelectItem value="HDCC">Có hợp đồng Cung cấp</SelectItem>
-                                                    <SelectItem value="PO">Đơn đặt hàng (PO)</SelectItem>
-                                                    <SelectItem value="NONE">Không có hợp đồng</SelectItem>
+                                                <SelectContent className="rounded-lg border-slate-100 shadow-xl">
+                                                    <SelectItem value="CK" className="text-[13px]">Chuyển khoản (CK)</SelectItem>
+                                                    <SelectItem value="TM" className="text-[13px]">Tiền mặt (TM)</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </div>
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label className="text-[11px] font-bold text-slate-700 ml-1 uppercase tracking-wider">Nội dung thanh toán *</Label>
+                                        <Input
+                                            placeholder="VD: Thanh toán đợt 1 cung cấp vật tư thép..."
+                                            value={headerData.payment_reason}
+                                            onChange={(e) => setHeaderData({ ...headerData, payment_reason: e.target.value })}
+                                            className="h-11 rounded-lg border-slate-200 focus:ring-primary/20 transition-all text-[13px] font-medium text-slate-700 bg-white"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label className="text-[11px] font-bold text-slate-700 ml-1 uppercase tracking-wider">Ghi chú chung</Label>
+                                        <Input
+                                            placeholder="Thông tin bổ sung..."
+                                            value={headerData.notes}
+                                            onChange={(e) => setHeaderData({ ...headerData, notes: e.target.value })}
+                                            className="h-11 rounded-lg border-slate-200 focus:ring-primary/20 transition-all text-[13px] text-slate-700 bg-white italic"
+                                        />
+                                    </div>
+                                </div>
 
-                                        <div className="grid gap-2">
-                                            <Label className="text-[11px] font-medium text-slate-500 ml-1">Ghi chú thêm</Label>
-                                            <Input
-                                                placeholder="..."
-                                                value={headerData.notes}
-                                                onChange={(e) => setHeaderData({ ...headerData, notes: e.target.value })}
-                                                className="h-10 rounded-xl border-slate-200 focus:ring-primary/20 transition-all text-sm italic opacity-70"
-                                            />
-                                        </div>
-
-                                        <div className="mt-8 p-6 bg-primary/[0.02] dark:bg-primary/[0.01] rounded-[2rem] border border-primary/10 shadow-sm relative overflow-hidden group">
-                                            <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-3xl transition-all group-hover:bg-primary/10" />
-                                            <div className="space-y-4 relative z-10">
-                                                <div className="flex justify-between items-center text-[12px] text-slate-500">
-                                                    <span className="flex items-center gap-2 italic">
-                                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-                                                        Tiền hàng (Net):
-                                                    </span>
-                                                    <span className="font-mono">{new Intl.NumberFormat('vi-VN').format(totals.net)}</span>
+                                {/* Right Side: Summary Box spanning multiple left-side rows */}
+                                <div className="h-full flex flex-col justify-start">
+                                    <div className="p-8 bg-primary/[0.02] dark:bg-primary/[0.01] rounded-2xl border border-primary/10 shadow-sm relative overflow-hidden group min-h-[300px] flex flex-col justify-center">
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-3xl transition-all group-hover:bg-primary/10" />
+                                        <div className="space-y-6 relative z-10">
+                                            <div className="flex justify-between items-center text-[13px] text-slate-500">
+                                                <span className="flex items-center gap-2">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                                                    Tiền hàng (Net):
+                                                </span>
+                                                <span className="font-mono font-semibold">{new Intl.NumberFormat('vi-VN').format(totals.net)}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center text-[13px] text-slate-500">
+                                                <span className="flex items-center gap-2">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                                                    Thuế GTGT (VAT):
+                                                </span>
+                                                <span className="font-mono font-semibold">{new Intl.NumberFormat('vi-VN').format(totals.vat)}</span>
+                                            </div>
+                                            <div className="pt-6 border-t border-primary/10 flex justify-between items-end">
+                                                <div>
+                                                    <span className="text-[12px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Tổng thanh toán</span>
+                                                    <span className="text-[11px] text-slate-400 font-normal">Đã bao gồm thuế GTGT</span>
                                                 </div>
-                                                <div className="flex justify-between items-center text-[12px] text-slate-500">
-                                                    <span className="flex items-center gap-2 italic">
-                                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-                                                        Thuế GTGT (VAT):
-                                                    </span>
-                                                    <span className="font-mono">{new Intl.NumberFormat('vi-VN').format(totals.vat)}</span>
-                                                </div>
-                                                <div className="pt-4 border-t border-primary/10 flex justify-between items-end">
-                                                    <div>
-                                                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Tổng cộng thanh toán</span>
-                                                        <span className="text-[10px] text-slate-400 italic font-normal">Đã bao gồm thuế GTGT</span>
-                                                    </div>
-                                                    <span className="text-2xl font-black text-primary tracking-tighter">
-                                                        {new Intl.NumberFormat('vi-VN').format(totals.gross)}
-                                                        <span className="text-[12px] ml-1 font-medium opacity-70">VNĐ</span>
-                                                    </span>
-                                                </div>
+                                                <span className="text-3xl font-black text-primary tracking-tighter">
+                                                    {new Intl.NumberFormat('vi-VN').format(totals.gross)}
+                                                    <span className="text-[14px] ml-1 font-bold opacity-70">VNĐ</span>
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
@@ -887,23 +1008,23 @@ export function PaymentRequestForm({ open, onOpenChange, projectId: initialProje
                 </div>
 
                 <DialogFooter className="p-6 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between shrink-0">
-                    <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-10 px-6 rounded-xl hover:bg-slate-100 transition-colors font-medium">
+                    <Button variant="ghost" onClick={() => onOpenChange(false)} className="h-10 px-6 rounded-lg hover:bg-slate-100 transition-colors font-medium">
                         Đóng
                     </Button>
                     <div className="flex gap-2">
                         {step > 1 && (
-                            <Button variant="outline" onClick={handleBack} disabled={loading} className="h-10 px-6 rounded-xl border-slate-200">
+                            <Button variant="outline" onClick={handleBack} disabled={loading} className="h-10 px-6 rounded-lg border-slate-200">
                                 <ChevronLeft className="h-4 w-4 mr-2" />
                                 Quay lại
                             </Button>
                         )}
                         {step < 3 ? (
-                            <Button onClick={handleNext} disabled={loading} className="h-10 px-8 rounded-xl shadow-lg shadow-primary/20">
+                            <Button onClick={handleNext} disabled={loading} className="h-10 px-8 rounded-lg shadow-lg shadow-primary/20">
                                 Tiếp tục
                                 <ChevronRight className="h-4 w-4 ml-2" />
                             </Button>
                         ) : (
-                            <Button onClick={handleSubmit} disabled={loading} className="h-10 px-10 rounded-xl shadow-lg shadow-primary/30 bg-primary hover:bg-primary/90 font-semibold">
+                            <Button onClick={handleSubmit} disabled={loading} className="h-10 px-10 rounded-lg shadow-lg shadow-primary/30 bg-primary hover:bg-primary/90 font-semibold">
                                 {loading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
                                 Gửi yêu cầu thanh toán
                             </Button>
@@ -928,7 +1049,7 @@ export function PaymentRequestForm({ open, onOpenChange, projectId: initialProje
                                 value={newSupplier.supplier_name}
                                 onChange={(e) => setNewSupplier({ ...newSupplier, supplier_name: e.target.value })}
                                 placeholder="Nhập tên đầy đủ..."
-                                className="rounded-xl"
+                                className="h-11 rounded-lg border-slate-200 text-[13px] font-medium text-slate-700 bg-white"
                             />
                         </div>
                         <div className="grid gap-2">
@@ -937,13 +1058,13 @@ export function PaymentRequestForm({ open, onOpenChange, projectId: initialProje
                                 value={newSupplier.tax_code}
                                 onChange={(e) => setNewSupplier({ ...newSupplier, tax_code: e.target.value })}
                                 placeholder="Nhập MST (nếu có)..."
-                                className="rounded-xl font-mono"
+                                className="h-11 rounded-lg border-slate-200 text-[13px] font-medium text-slate-700 bg-white font-mono"
                             />
                         </div>
                     </div>
                     <DialogFooter>
                         <Button variant="ghost" onClick={() => setIsAddingSupplier(false)}>Hủy</Button>
-                        <Button onClick={handleQuickAddSupplier} disabled={loading} className="rounded-xl">
+                        <Button onClick={handleQuickAddSupplier} disabled={loading} className="rounded-lg">
                             {loading && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
                             Lưu thông tin
                         </Button>

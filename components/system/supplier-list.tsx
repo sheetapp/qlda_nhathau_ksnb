@@ -89,7 +89,8 @@ export function SupplierList({ projectId, projects }: SupplierListProps) {
                 'Dự án': s.project_id || 'Dùng chung'
             }))
 
-            const ws = XLSX.utils.json_to_sheet(data)
+            const headers = ['STT', 'Mã NCC', 'Tên nhà cung cấp', 'Mã số thuế', 'Phân loại', 'Nhóm mặt hàng', 'Khu vực', 'Người liên hệ', 'Số điện thoại', 'Địa chỉ', 'Dự án'];
+            const ws = XLSX.utils.json_to_sheet(data, { header: headers })
             const wb = XLSX.utils.book_new()
             XLSX.utils.book_append_sheet(wb, ws, "Danh_sach_NCC")
             XLSX.writeFile(wb, "Danh_sach_NCC.xlsx")
@@ -264,7 +265,7 @@ export function SupplierList({ projectId, projects }: SupplierListProps) {
                 )
             },
             {
-                header: 'Mặt hàng',
+                header: 'Mặt hàng cung cấp',
                 key: 'commodity_group',
                 render: (val: string) => <span className="text-[12px] font-medium text-slate-600">{val || "-"}</span>
             },

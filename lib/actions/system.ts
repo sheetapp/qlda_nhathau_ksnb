@@ -407,7 +407,10 @@ export async function deleteSupplier(id: string, projectId?: string) {
 export async function getExpenseCategories() {
     const { data, error } = await adminClient
         .from('expense_categories')
-        .select('*')
+        .select(`
+            *,
+            department:departments!responsible_department_id(name)
+        `)
         .order('type_name')
     if (error) throw error
     return data
@@ -425,7 +428,7 @@ export async function addExpenseCategory(data: any) {
 }
 
 export async function updateExpenseCategory(id: string, data: any) {
-    const { id: _id, created_at: _ca, ...rest } = data
+    const { id: _id, created_at: _ca, department: _dept, ...rest } = data
     const { data: result, error } = await adminClient
         .from('expense_categories')
         .update(rest)
@@ -440,6 +443,77 @@ export async function updateExpenseCategory(id: string, data: any) {
 export async function deleteExpenseCategory(id: string) {
     const { error } = await adminClient
         .from('expense_categories')
+        .delete()
+        .eq('id', id)
+    if (error) throw error
+    revalidatePath('/dashboard/system')
+    return true
+}
+
+export async function addExpenseCategories(categories: any[]) {
+    const { data: result, error } = await adminClient
+        .from('expense_categories')
+        .upsert(categories, { onConflict: 'id' })
+        .select()
+    if (error) {
+        console.error("Error in addExpenseCategories:", error)
+        throw error
+    }
+    revalidatePath('/dashboard/system')
+    return result
+}
+
+/**
+ * WAREHOUSES (Quản lý kho)
+ */
+export async function getWarehouses() {
+    const { data: warehouses, error } = await adminClient
+        .from('warehouses')
+        .select(`
+            *,
+            project:projects(project_name)
+        `)
+        .order('name')
+
+    if (error) throw error
+    return warehouses
+}
+
+export async function addWarehouse(data: any) {
+    const cleanData = {
+        ...data,
+        project_id: data.project_id || null
+    }
+    const { data: result, error } = await adminClient
+        .from('warehouses')
+        .insert([cleanData])
+        .select()
+        .single()
+    if (error) throw error
+    revalidatePath('/dashboard/system')
+    return result
+}
+
+export async function updateWarehouse(id: string, data: any) {
+    const { id: _id, created_at: _ca, project: _proj, ...rest } = data
+    const cleanData = {
+        ...rest,
+        project_id: rest.project_id || null
+    }
+    const { data: result, error } = await adminClient
+        .from('warehouses')
+        .update(cleanData)
+        .eq('id', id)
+        .select()
+        .single()
+    if (error) throw error
+    revalidatePath('/dashboard/system')
+    return result
+}
+
+export async function deleteWarehouse(id: string) {
+    const { error } = await adminClient
+        .from('warehouses')
         .delete()
         .eq('id', id)
     if (error) throw error
