@@ -366,16 +366,18 @@ export function ProjectItemList({ initialItems = [], projects = [], projectId }:
                 ] : []}
                 actions={[
                     {
-                        label: 'Xuất Excel',
+                        label: '',
                         icon: Download,
                         onClick: handleExportExcel,
-                        className: "bg-emerald-500/10 text-emerald-600 border-emerald-200 hover:bg-emerald-500/20"
+                        className: "rounded-full w-8 h-8 bg-emerald-500/10 text-emerald-600 border-emerald-200 hover:bg-emerald-500/20",
+                        variant: "outline"
                     },
                     {
-                        label: 'Nhập Excel',
+                        label: '',
                         icon: Upload,
                         onClick: () => fileInputRef.current?.click(),
-                        className: "bg-blue-500/10 text-blue-600 border-blue-200 hover:bg-blue-500/20"
+                        className: "rounded-full w-8 h-8 bg-blue-500/10 text-blue-600 border-blue-200 hover:bg-blue-500/20",
+                        variant: "outline"
                     }
                 ]}
                 defaultValues={{

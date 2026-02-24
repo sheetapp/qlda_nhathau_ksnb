@@ -22,7 +22,9 @@ import {
     Menu,
     BarChart3,
     TrendingUp,
-    TrendingDown
+    TrendingDown,
+    Building2,
+    LayoutGrid
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
@@ -36,17 +38,18 @@ const navigation = [
     { name: 'Công việc', href: '/dashboard/tasks', icon: CheckSquare },
     { name: 'Tài nguyên', href: '/dashboard/resources', icon: Package },
     { name: 'Tiến độ', href: '/dashboard/progress', icon: TrendingUp },
+    { name: 'Hành chính tổng hợp', href: '/dashboard/app-store/administration', icon: Building2 },
     {
         name: 'Nhân sự',
         icon: Users,
         children: [
-            { name: 'Người dùng hệ thống', href: '/dashboard/personnel' },
+            { name: 'Nhân sự tổng hợp', href: '/dashboard/app-store/personnel' },
             { name: 'Công nhân', href: '/dashboard/personnel/workers' },
         ]
     },
     {
         name: 'Đối tác',
-        icon: Users,
+        icon: Building2,
         children: [
             { name: 'Nhà cung cấp', href: '/dashboard/system/suppliers' },
             { name: 'Thầu phụ', href: '/dashboard/subcontractors' },
@@ -301,6 +304,23 @@ export function Sidebar() {
                     <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
                     {!isCollapsed && <span className="ml-3">Giao diện {theme === 'dark' ? 'Tối' : 'Sáng'}</span>}
                 </Button>
+
+                <Link
+                    href="/dashboard/app-store"
+                    className={cn(
+                        "group flex items-center px-3 py-2 text-sm font-medium rounded-xl transition-all duration-200",
+                        pathname === '/dashboard/app-store'
+                            ? "bg-primary/10 text-primary border border-primary/20 shadow-sm"
+                            : "text-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+                    )}
+                >
+                    <LayoutGrid className={cn(
+                        "mr-3 h-4.5 w-4.5 transition-colors shrink-0",
+                        pathname === '/dashboard/app-store' ? "text-primary" : "text-foreground/40 group-hover:text-sidebar-accent-foreground",
+                        isCollapsed && "mr-0"
+                    )} />
+                    {!isCollapsed && <span className="flex-1 whitespace-nowrap overflow-hidden">Kho ứng dụng</span>}
+                </Link>
 
                 {!isCollapsed ? (
                     <div className="bg-foreground/5 rounded-2xl p-3">

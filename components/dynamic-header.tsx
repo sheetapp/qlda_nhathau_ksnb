@@ -76,7 +76,19 @@ const ROUTE_METADATA: Record<string, { title: string; description: string }> = {
     '/dashboard/system/templates': {
         title: 'Mẫu biểu Hệ thống',
         description: 'Quản lý các biểu mẫu chuẩn cho các nghiệp vụ trong công ty.'
-    }
+    },
+    '/dashboard/app-store': {
+        title: 'Kho ứng dụng',
+        description: 'Nơi tập trung các công cụ và tiện ích nghiệp vụ chuyên sâu.'
+    },
+    '/dashboard/app-store/administration': {
+        title: 'Hành chính tổng hợp',
+        description: 'Quản lý nghiệp vụ hành chính, công lương và tài sản.'
+    },
+    '/dashboard/app-store/personnel': {
+        title: 'Nhân sự tổng hợp',
+        description: 'Quản lý kế hoạch, tuyển dụng, đào tạo và phát triển nhân sự.'
+    },
 }
 
 const TEMPLATE_NAMES: Record<string, string> = {
@@ -99,9 +111,13 @@ export function DynamicHeader() {
     }
 
     // Generate breadcrumbs segments
-    const pathSegments = pathname.split('/').filter(Boolean)
+    const pathSegments = pathname.split('/').filter(Boolean).filter(s => s !== 'dashboard')
     const breadcrumbs = pathSegments.map((segment, index) => {
-        const path = `/${pathSegments.slice(0, index + 1).join('/')}`
+        // Build the current path by finding the index of the segment in the original path
+        const allSegments = pathname.split('/').filter(Boolean)
+        const segmentIdx = allSegments.indexOf(segment)
+        const path = `/${allSegments.slice(0, segmentIdx + 1).join('/')}`
+
         const item = ROUTE_METADATA[path]
 
         let name = item?.title || segment.charAt(0).toUpperCase() + segment.slice(1)

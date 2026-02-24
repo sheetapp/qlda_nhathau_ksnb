@@ -11,6 +11,7 @@ import { MobileNotifications } from '@/components/mobile-notifications'
 import { MobileProfile } from '@/components/mobile-profile'
 import { DynamicHeader } from '@/components/dynamic-header'
 import { NotificationDropdown } from '@/components/notification-dropdown'
+import { AppStoreMenu } from '@/components/app-store-menu'
 import { UserNav } from '@/components/user-nav'
 import { cn } from '@/lib/utils'
 
@@ -84,6 +85,7 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
 
                     {!isMobile && (
                         <div className="flex items-center gap-3">
+                            <AppStoreMenu />
                             <NotificationDropdown />
                             <div className="h-8 w-[1px] bg-border mx-1" />
                             <UserNav user={user} />

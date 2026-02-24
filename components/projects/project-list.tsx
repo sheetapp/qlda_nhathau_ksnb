@@ -384,22 +384,22 @@ export function ProjectList({ initialProjects, users }: ProjectListProps) {
 
                     <Button
                         variant="outline"
-                        size="sm"
+                        size="icon"
                         onClick={handleExportExcel}
-                        className="rounded-full px-4 h-8 text-xs bg-emerald-500/10 text-emerald-600 border-emerald-200 hover:bg-emerald-500/20"
+                        className="rounded-full w-8 h-8 bg-emerald-500/10 text-emerald-600 border-emerald-200 hover:bg-emerald-500/20"
                         title="Xuất Excel"
                     >
-                        <Download className="h-3.5 w-3.5 mr-2" />
+                        <Download className="h-3.5 w-3.5" />
                     </Button>
                     <div className="relative">
                         <Button
                             variant="outline"
-                            size="sm"
+                            size="icon"
                             onClick={() => fileInputRef.current?.click()}
-                            className="rounded-full px-4 h-8 text-xs bg-blue-500/10 text-blue-600 border-blue-200 hover:bg-blue-500/20"
+                            className="rounded-full w-8 h-8 bg-blue-500/10 text-blue-600 border-blue-200 hover:bg-blue-500/20"
                             title="Nhập Excel"
                         >
-                            <Upload className="h-3.5 w-3.5 mr-2" />
+                            <Upload className="h-3.5 w-3.5" />
                         </Button>
                         <input
                             type="file"

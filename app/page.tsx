@@ -48,7 +48,7 @@ export default function Home() {
           <div className="space-y-3">
             <p className="font-medium text-[#f15a24] text-lg tracking-tight">QUẢN LÝ DỰ ÁN </p>
             <h1 className="text-[35px] tracking-tight text-[#1a1a1a] leading-tight">XÂY DỰNG - NỘI THẤT</h1>
-            <p className="text-gray-400 font-medium ml-1">Đơn giản -  Hiệu quả - Kịp thời</p>
+            <p className="text-gray-400 font-medium ml-1">Đăng nhập vào tài khoản quản trị Dự án</p>
           </div>
 
           {/* Action Section */}
@@ -68,16 +68,16 @@ export default function Home() {
 
             <div className="relative flex items-center gap-4 py-2">
               <div className="flex-1 h-[1.5px] bg-gray-50" />
-              <span className="text-[12px] font-medium text-gray-300 whitespace-nowrap px-2 tracking-widest">v.01.19 </span>
+              <span className="text-[12px] font-medium text-gray-300 whitespace-nowrap px-2 tracking-widest">Đơn giản -  Kịp thời - Hiệu quả</span>
               <div className="flex-1 h-[1.5px] bg-gray-50" />
             </div>
           </div>
 
           <div className="pt-10 flex flex-col gap-2 border-t border-gray-50">
-            <p className="text-[12px] font-medium text-gray-300 tracking-widest">
-              QLDA XD ©2026
+            <p className="text-[12px] font-medium text-gray-400 tracking-widest">
+              QLDA XD ©2026 - Ver 01.10
             </p>
-            <p className="text-[12px] text-gray-400 font-medium">
+            <p className="text-[12px] text-blue-400 font-medium">
               Hotline: 0989 256 894
             </p>
           </div>
