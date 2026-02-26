@@ -16,7 +16,7 @@ interface AppGridProps {
 export function AppGrid({ apps, favorites, onToggleFavorite, detailed = false }: AppGridProps) {
     return (
         <div className={cn(
-            "grid gap-6",
+            "grid gap-4",
             detailed
                 ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
                 : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
@@ -25,8 +25,8 @@ export function AppGrid({ apps, favorites, onToggleFavorite, detailed = false }:
                 const CardContent = (
                     <div
                         className={cn(
-                            "group relative flex flex-col items-center bg-white border border-slate-100 shadow-sm hover:shadow-2xl hover:shadow-primary/5 hover:-translate-y-1.5 transition-all duration-300 cursor-pointer overflow-hidden h-full",
-                            detailed ? "p-8 rounded-[2.5rem]" : "p-8 rounded-[2rem]"
+                            "group relative flex flex-col items-center bg-white border border-slate-100 shadow-sm hover:shadow-2xl hover:shadow-primary/5 hover:-translate-y-1 transition-all duration-300 cursor-pointer overflow-hidden h-full",
+                            detailed ? "p-5 rounded-[1.5rem]" : "p-4 rounded-[1.25rem]"
                         )}
                     >
                         <div className="absolute top-4 right-4 z-10">
@@ -51,9 +51,9 @@ export function AppGrid({ apps, favorites, onToggleFavorite, detailed = false }:
                         <div className={cn(
                             "rounded-2xl text-white shadow-xl group-hover:scale-110 transition-transform duration-500",
                             app.color,
-                            detailed ? "p-6 mb-8 rounded-[2rem]" : "p-5 mb-6 rounded-2xl"
+                            detailed ? "p-3.5 mb-5 rounded-2xl" : "p-3 mb-4 rounded-xl"
                         )}>
-                            <app.icon className={detailed ? "h-10 w-10" : "h-8 w-8"} />
+                            <app.icon className={detailed ? "h-6 w-6" : "h-5 w-5"} />
                         </div>
 
                         <div className="text-center">

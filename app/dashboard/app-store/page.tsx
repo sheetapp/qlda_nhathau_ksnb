@@ -45,9 +45,9 @@ export default function AppStorePage() {
 
     return (
         <div className="flex flex-col h-full bg-slate-50/10">
-            <div className="flex flex-col gap-6 p-6">
-                <Tabs defaultValue="functions" className="space-y-6">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-2 rounded-2xl border border-slate-100 shadow-sm">
+            <div className="flex flex-col gap-4 p-4">
+                <Tabs defaultValue="functions" className="space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-1.5 rounded-xl border border-slate-100 shadow-sm">
                         <TabsList className="bg-slate-100/50 p-1 gap-1 h-auto shrink-0">
                             <TabsTrigger
                                 value="functions"
@@ -80,13 +80,32 @@ export default function AppStorePage() {
                         </div>
                     </div>
 
-                    <TabsContent value="functions" className="focus-visible:outline-none">
-                        <AppGrid
-                            apps={filteredApps}
-                            favorites={favorites}
-                            onToggleFavorite={toggleFavorite}
-                            detailed
-                        />
+                    <TabsContent value="functions" className="focus-visible:outline-none space-y-10">
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-3 px-1">
+                                <div className="h-4 w-1 bg-primary rounded-full" />
+                                <h2 className="text-[15px] font-bold text-slate-800 uppercase tracking-wider">Chức năng</h2>
+                            </div>
+                            <AppGrid
+                                apps={filteredApps.filter(app => app.category === 'function')}
+                                favorites={favorites}
+                                onToggleFavorite={toggleFavorite}
+                                detailed
+                            />
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-3 px-1">
+                                <div className="h-4 w-1 bg-slate-500 rounded-full" />
+                                <h2 className="text-[15px] font-bold text-slate-800 uppercase tracking-wider">Hệ thống</h2>
+                            </div>
+                            <AppGrid
+                                apps={filteredApps.filter(app => app.category === 'system')}
+                                favorites={favorites}
+                                onToggleFavorite={toggleFavorite}
+                                detailed
+                            />
+                        </div>
                     </TabsContent>
 
                     <TabsContent value="favorites" className="focus-visible:outline-none">
