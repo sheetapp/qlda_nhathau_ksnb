@@ -52,7 +52,7 @@ export function TaskDialog({
     const [isLoading, setIsLoading] = useState(false)
     const [projects, setProjects] = useState<{ project_id: string; project_name: string }[]>([])
     const [projectItems, setProjectItems] = useState<any[]>([])
-    const isEdit = !!task
+    const isEdit = !!(task && task.task_id)
 
     const [formData, setFormData] = useState({
         project_id: propProjectId || '',

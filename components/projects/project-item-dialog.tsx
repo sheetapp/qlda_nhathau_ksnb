@@ -27,6 +27,7 @@ interface ProjectItemDialogProps {
     projects: { project_id: string, project_name: string }[]
     users: { email: string, full_name: string }[]
     projectId?: string
+    onSuccess?: () => void
 }
 
 export function ProjectItemDialog({
@@ -39,7 +40,8 @@ export function ProjectItemDialog({
     isSubmitting,
     projects,
     users,
-    projectId
+    projectId,
+    onSuccess
 }: ProjectItemDialogProps) {
 
     // Initialize default start date to today if creating new
